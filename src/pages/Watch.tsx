@@ -1,0 +1,730 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { doc, getDoc, collection, query, limit, getDocs, updateDoc, increment, addDoc, orderBy, where, serverTimestamp, arrayUnion, arrayRemove, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { VideoMetadata, Comment } from '../types';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
+import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../AuthProvider';
+import { cn } from '../lib/utils';
+import ReactMarkdown from 'react-markdown';
+import VideoCard from '../components/VideoCard';
+import { toast } from 'sonner';
+
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+
+const Watch: React.FC = () => {
+  const { videoId: routeVideoId } = useParams<{ videoId: string }>();
+  const { user, profile } = useAuth();
+  const [video, setVideo] = useState<VideoMetadata | null>(null);
+  const [uploaderProfile, setUploaderProfile] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<VideoMetadata[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
+  const videoRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+  const navigate = useNavigate();
+
+  const isSaved = profile?.savedVideos?.includes(video?.id || '');
+  const isLiked = video?.likedBy?.includes(user?.uid || '');
+  const isFollowing = profile?.following?.includes(video?.creatorId || '');
+
+  const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
+
+  const handleDeleteVideo = () => {
+    if (!video || !user) return;
+    const isOwner = video.creatorId === user.uid;
+    if (!isAdmin && !isOwner) return;
+    
+    setShowDeleteVideoModal(true);
+  };
+
+  const confirmDeleteVideo = async () => {
+    if (!video || !user) return;
+    setShowDeleteVideoModal(false);
+
+    try {
+      // Only delete the video document. 
+      // Orphaned comments won't be fetched, and savedVideo references will be filtered out on read.
+      await deleteDoc(doc(db, 'videos', video.id));
+
+      toast.success("Video deleted successfully.");
+      navigate('/');
+    } catch (error) {
+      console.error("Error deleting video:", error);
+      handleFirestoreError(error, OperationType.DELETE, `videos/${video.id}`);
+    }
+  };
+
+  const handleCommentDelete = async (commentId: string, commentUserId: string) => {
+    if (!user || !video) return;
+    const isOwner = commentUserId === user.uid;
+    if (!isAdmin && !isOwner) return;
+    
+    try {
+      await deleteDoc(doc(db, 'videos', video.id, 'comments', commentId));
+      toast.success("Comment deleted");
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      toast.error("Failed to delete comment");
+    }
+  };
+
+  const handleReplyDelete = async (commentId: string, replyId: string, replyUserId: string) => {
+    if (!user || !video) return;
+    const isOwner = replyUserId === user.uid;
+    if (!isAdmin && !isOwner) return;
+
+    try {
+      const commentRef = doc(db, 'videos', video.id, 'comments', commentId);
+      const comment = comments.find(c => c.id === commentId);
+      if (!comment) return;
+      
+      const updatedReplies = comment.replies?.filter((r: any) => r.id !== replyId) || [];
+      await updateDoc(commentRef, { replies: updatedReplies });
+      toast.success("Reply deleted");
+    } catch (error) {
+      console.error("Error deleting reply:", error);
+      toast.error("Failed to delete reply");
+    }
+  };
+
+  const handleLikeVideo = async () => {
+    if (!user || !video) {
+      toast.error("Please sign in to like videos");
+      return;
+    }
+    try {
+      const videoRef = doc(db, 'videos', video.id);
+      if (isLiked) {
+        await updateDoc(videoRef, { 
+          likes: increment(-1),
+          likedBy: arrayRemove(user.uid)
+        });
+        toast.success("Removed from liked videos");
+      } else {
+        await updateDoc(videoRef, { 
+          likes: increment(1),
+          likedBy: arrayUnion(user.uid)
+        });
+        toast.success("Added to liked videos!");
+        
+        // Notification
+        if (video.creatorId !== user.uid) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: video.creatorId,
+            fromId: user.uid,
+            fromName: profile?.username || user.displayName || 'Someone',
+            type: 'like',
+            videoId: video.id,
+            videoTitle: video.title,
+            createdAt: serverTimestamp(),
+            read: false
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error liking video:", error);
+      toast.error("Failed to update like status");
+    }
+  };
+
+  const handleSaveVideo = async () => {
+    if (!user || !video) {
+      toast.error("Please sign in to save videos");
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      if (isSaved) {
+        await updateDoc(userRef, {
+          savedVideos: arrayRemove(video.id)
+        });
+        toast.success("Removed from saved videos");
+      } else {
+        await updateDoc(userRef, {
+          savedVideos: arrayUnion(video.id)
+        });
+        toast.success("Saved to your profile");
+      }
+    } catch (error) {
+      console.error("Error saving video:", error);
+      toast.error("Failed to save video");
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!user || !video) {
+      toast.error("Please sign in to follow creators");
+      return;
+    }
+    if (video.creatorId === user.uid) {
+      toast.error("You cannot follow yourself");
+      return;
+    }
+
+    try {
+      const myRef = doc(db, 'users', user.uid);
+      const theirRef = doc(db, 'users', video.creatorId);
+
+      if (isFollowing) {
+        await updateDoc(myRef, { 
+          following: arrayRemove(video.creatorId),
+          followingCount: increment(-1)
+        });
+        await updateDoc(theirRef, { 
+          followers: arrayRemove(user.uid),
+          followerCount: increment(-1)
+        });
+        toast.success("Unfollowed");
+      } else {
+        await updateDoc(myRef, { 
+          following: arrayUnion(video.creatorId),
+          followingCount: increment(1)
+        });
+        await updateDoc(theirRef, { 
+          followers: arrayUnion(user.uid),
+          followerCount: increment(1)
+        });
+        toast.success("Following!");
+        
+        // Notification
+        await addDoc(collection(db, 'notifications'), {
+          userId: video.creatorId,
+          fromId: user.uid,
+          fromName: profile?.username || user.displayName || 'Someone',
+          type: 'follow',
+          videoId: video.id,
+          videoTitle: 'your profile',
+          createdAt: serverTimestamp(),
+          read: false
+        });
+      }
+    } catch (error) {
+      console.error("Error following user:", error);
+      toast.error("Failed to update follow status");
+    }
+  };
+
+  const handleCommentLike = async (commentId: string) => {
+    if (!user || !video) return;
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const isCommentLiked = comment.likedBy?.includes(user.uid);
+    const commentRef = doc(db, 'videos', video.id, 'comments', commentId);
+
+    try {
+      if (isCommentLiked) {
+        await updateDoc(commentRef, {
+          likes: increment(-1),
+          likedBy: arrayRemove(user.uid)
+        });
+      } else {
+        await updateDoc(commentRef, {
+          likes: increment(1),
+          likedBy: arrayUnion(user.uid)
+        });
+      }
+    } catch (error) {
+      console.error("Error liking comment:", error);
+    }
+  };
+
+  const handleCommentSubmit = async () => {
+    if (!user || !newComment.trim() || !video) return;
+    try {
+      const commentData = {
+        videoId: video.id,
+        userId: user.uid,
+        userName: profile?.username || profile?.studentId || profile?.displayName || user.displayName || 'User',
+        userPhoto: profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        text: newComment,
+        createdAt: new Date().toISOString(),
+        likes: 0,
+        replies: []
+      };
+      
+      await addDoc(collection(db, 'videos', video.id, 'comments'), commentData);
+      setNewComment('');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+    }
+  };
+
+  const handleReplySubmit = async (commentId: string) => {
+    if (!user || !replyText.trim() || !video) return;
+    try {
+      const replyData = {
+        id: Math.random().toString(36).substring(7),
+        videoId: video.id,
+        userId: user.uid,
+        userName: profile?.username || profile?.displayName || 'User',
+        userPhoto: profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        text: replyText,
+        createdAt: new Date().toISOString(),
+        likes: 0
+      };
+
+      const commentRef = doc(db, 'videos', video.id, 'comments', commentId);
+      await updateDoc(commentRef, {
+        replies: arrayUnion(replyData)
+      });
+
+      // Mock notification
+      await addDoc(collection(db, 'notifications'), {
+        userId: comments.find(c => c.id === commentId)?.userId,
+        fromId: user.uid,
+        fromName: profile?.username || 'Someone',
+        type: 'reply',
+        videoId: video.id,
+        videoTitle: video.title,
+        createdAt: serverTimestamp(),
+        read: false
+      });
+
+      setReplyTo(null);
+      setReplyText('');
+      toast.success('Reply posted!');
+    } catch (error) {
+      console.error('Error posting reply:', error);
+    }
+  };
+
+  useEffect(() => {
+    let unsubscribeUploader: (() => void) | null = null;
+
+    const fetchVideo = async () => {
+      if (!routeVideoId) return;
+      try {
+        // Search by videoId field
+        const q = query(collection(db, 'videos'), where('videoId', '==', routeVideoId), limit(1));
+        const querySnapshot = await getDocs(q);
+        
+        let videoDocId: string | null = null;
+
+        if (!querySnapshot.empty) {
+          videoDocId = querySnapshot.docs[0].id;
+        } else {
+          // Fallback to direct ID if not found by videoId field (for older videos)
+          const directDoc = await getDoc(doc(db, 'videos', routeVideoId));
+          if (directDoc.exists()) {
+            videoDocId = directDoc.id;
+          }
+        }
+
+        if (videoDocId) {
+          // Real-time video data
+          const unsubscribeVideo = onSnapshot(doc(db, 'videos', videoDocId), (snapshot) => {
+            if (snapshot.exists()) {
+              const videoData = { id: snapshot.id, ...snapshot.data() } as VideoMetadata;
+              setVideo(videoData);
+              
+              // Fetch uploader profile in real-time
+              if (!unsubscribeUploader) {
+                unsubscribeUploader = onSnapshot(doc(db, 'users', videoData.creatorId), (userSnapshot) => {
+                  if (userSnapshot.exists()) {
+                    setUploaderProfile(userSnapshot.data());
+                  }
+                });
+              }
+            }
+          });
+
+          // Real-time comments
+          const commentsQ = query(collection(db, 'videos', videoDocId, 'comments'), orderBy('createdAt', 'desc'));
+          const unsubscribeComments = onSnapshot(commentsQ, (snapshot) => {
+            setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment)));
+          }, (error) => {
+            console.error("Error fetching comments:", error);
+          });
+
+          // Increment views once
+          try {
+            await updateDoc(doc(db, 'videos', videoDocId), { views: increment(1) });
+          } catch (e) {
+            console.warn("Could not increment views", e);
+          }
+
+          // Fetch 5 recommendations (static for now, or could be real-time)
+          const recsQ = query(collection(db, 'videos'), limit(5));
+          const recsSnapshot = await getDocs(recsQ);
+          setRecommendations(recsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata)));
+
+          return () => {
+            unsubscribeVideo();
+            unsubscribeComments();
+            if (unsubscribeUploader) unsubscribeUploader();
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching video:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const cleanupPromise = fetchVideo();
+
+    return () => {
+      cleanupPromise.then(cleanup => cleanup && cleanup());
+    };
+  }, [routeVideoId]);
+
+  useEffect(() => {
+    if (!video || !videoRef.current) return;
+
+    if (!playerRef.current) {
+      const videoElement = document.createElement('video-js');
+      videoElement.classList.add('vjs-big-play-centered', 'vjs-theme-city');
+      videoRef.current.appendChild(videoElement);
+
+      const player = playerRef.current = videojs(videoElement, {
+        autoplay: false,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        sources: [{ src: video.videoURL, type: 'video/mp4' }]
+      });
+    } else {
+      playerRef.current.src({ src: video.videoURL, type: 'video/mp4' });
+    }
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.dispose();
+        playerRef.current = null;
+      }
+    };
+  }, [video]);
+
+  if (loading) return <div className="flex items-center justify-center h-[80vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
+  if (!video) return <div className="text-center py-20">Video not found.</div>;
+
+  return (
+    <div className="max-w-7xl mx-auto pb-20 px-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Side: Uploader Details (Sticky) */}
+        <div className="lg:col-span-2 relative">
+          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm sticky top-24">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <Link to={`/channel/${video.creatorId}`} className="w-20 h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-xl">
+                <img src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
+              </Link>
+              <div>
+                <Link to={`/channel/${video.creatorId}`} className="text-lg font-black hover:text-primary transition-colors flex items-center justify-center gap-1">
+                  {uploaderProfile?.username || video.creatorName}
+                  <CheckCircle2 size={16} fill="currentColor" className="text-primary" />
+                </Link>
+                <p className="text-primary font-bold text-[10px] mt-0.5 uppercase tracking-wider">{uploaderProfile?.faculty || video.creatorFaculty || 'MMU Faculty'}</p>
+                <div className="flex items-center justify-center gap-1 text-amber-500">
+                  <Award size={14} />
+                  <span className="text-xs font-bold">{uploaderProfile?.awards || 0} Awards</span>
+                </div>
+              </div>
+              
+              <div className="w-full pt-4 border-t border-border space-y-4">
+                <button 
+                  onClick={handleFollow}
+                  className={cn(
+                    "w-full font-bold py-2.5 rounded-xl transition-all shadow-lg",
+                    isFollowing 
+                      ? "bg-muted text-foreground hover:bg-muted/80" 
+                      : "bg-primary text-white hover:bg-primary/90 shadow-primary/20"
+                  )}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+                <div className="flex justify-around text-sm">
+                  <div className="text-center">
+                    <p className="font-black">{uploaderProfile?.followerCount || uploaderProfile?.followers?.length || 0}</p>
+                    <p className="text-muted-foreground text-[9px] uppercase tracking-widest font-bold">Followers</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-black">{uploaderProfile?.awards || 0}</p>
+                    <p className="text-muted-foreground text-[9px] uppercase tracking-widest font-bold">Awards</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Video Player (Wider) */}
+        <div className="lg:col-span-10">
+          <div className="bg-black rounded-3xl overflow-hidden shadow-2xl border border-border aspect-video relative group">
+            <div ref={videoRef} className="w-full h-full" />
+          </div>
+        </div>
+      </div>
+
+      {/* Full Width Bottom Section: Title, Description, Comments */}
+      <div className="mt-8 space-y-8">
+        {/* Video Info */}
+        <div className="bg-card p-8 rounded-3xl border border-border shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
+            <div className="flex-1">
+              <h1 className="text-3xl font-black mb-2 tracking-tight">{video.title}</h1>
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1 font-medium"><Play size={14} /> {video.views?.toLocaleString()} views</span>
+                <span className="flex items-center gap-1 font-medium"><Clock size={14} /> {video.createdAt ? formatDistanceToNow(new Date(video.createdAt.toMillis ? video.createdAt.toMillis() : video.createdAt), { addSuffix: true }) : 'Just now'}</span>
+                <span className="bg-primary/10 text-primary px-3 py-0.5 rounded-full text-xs font-bold border border-primary/20">{video.category}</span>
+              </div>
+            </div>
+
+            {/* Primary Interactions Aligned with Title */}
+            <div className="flex items-center gap-3 bg-muted/50 p-2 rounded-2xl border border-border">
+              {(isAdmin || (user && video.creatorId === user.uid)) && (
+                <button 
+                  onClick={handleDeleteVideo}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold hover:bg-red-500/10 text-red-500 transition-all"
+                  title="Delete Video"
+                >
+                  <Trash2 size={20} />
+                  <span>Delete</span>
+                </button>
+              )}
+
+              <button 
+                onClick={handleLikeVideo}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
+                  isLiked ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
+                <span>{video.likes.toLocaleString()}</span>
+              </button>
+              
+              <button 
+                onClick={handleSaveVideo}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
+                  isSaved ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Bookmark size={20} fill={isSaved ? "currentColor" : "none"} />
+                <span>{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
+
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold hover:bg-muted text-muted-foreground transition-all">
+                <Share2 size={20} />
+                <span>Share</span>
+              </button>
+            </div>
+          </div>
+          
+          <div className="prose prose-sm max-w-none">
+            <div className="bg-muted/30 p-6 rounded-2xl border border-border">
+              <p className="whitespace-pre-wrap text-foreground/80 leading-relaxed text-base">{video.description}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recommended Videos */}
+        <div className="space-y-4">
+          <h3 className="text-xl font-black flex items-center gap-2">
+            <Sparkles size={20} className="text-amber-500" />
+            Recommended for You
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {recommendations.map(rec => (
+              <VideoCard key={rec.id} video={rec} />
+            ))}
+          </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="bg-card p-8 rounded-3xl border border-border shadow-sm">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="bg-primary p-2 rounded-xl">
+              <MessageSquare size={24} className="text-white" />
+            </div>
+            <h2 className="text-2xl font-black">Comments <span className="text-muted-foreground ml-2">{comments.length}</span></h2>
+          </div>
+
+          {/* Add Comment */}
+          {user ? (
+            <div className="flex gap-4 mb-10">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
+                <img src={profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="Me" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 relative">
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="w-full bg-muted/50 border border-border rounded-2xl p-4 pr-16 focus:outline-none focus:border-primary transition-all resize-none h-24 text-foreground"
+                />
+                <button 
+                  onClick={handleCommentSubmit}
+                  disabled={!newComment.trim()}
+                  className="absolute right-4 bottom-4 bg-primary p-3 rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                >
+                  <Send size={20} className="text-white" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-muted/30 border border-border border-dashed rounded-2xl p-8 text-center mb-10">
+              <MessageSquare size={48} className="mx-auto text-muted-foreground/20 mb-4" />
+              <p className="text-lg font-medium mb-6">Join the conversation with other MMU students.</p>
+              <button onClick={() => navigate('/login')} className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary/90 transition-colors">
+                Sign In to Comment
+              </button>
+            </div>
+          )}
+
+          {/* Comments List */}
+          <div className="space-y-6">
+            {comments.map((comment) => (
+              <div key={comment.id} className="group">
+                <div className="flex gap-4">
+                  <Link to={`/channel/${comment.userId}`} className="w-10 h-10 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
+                    <img src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`} alt="User" className="w-full h-full object-cover" />
+                  </Link>
+                  <div className="flex-1">
+                    <div className="bg-muted/30 p-6 rounded-2xl border border-border group-hover:border-primary/20 transition-all">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2">
+                          <Link to={`/channel/${comment.userId}`} className="font-bold text-foreground hover:text-primary transition-colors cursor-pointer">{comment.userName}</Link>
+                          <span className="text-muted-foreground text-xs ml-3">{formatDistanceToNow(new Date(comment.createdAt.toMillis ? comment.createdAt.toMillis() : comment.createdAt))} ago</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(isAdmin || (user && comment.userId === user.uid)) && (
+                            <button 
+                              onClick={() => handleCommentDelete(comment.id, comment.userId)}
+                              className="text-red-500 hover:text-red-600 transition-colors p-1"
+                              title="Delete Comment"
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                          <button className="text-muted-foreground hover:text-foreground transition-colors">
+                            <MoreHorizontal size={18} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-base mt-2 text-foreground/90 leading-relaxed">{comment.text}</p>
+                      <div className="flex items-center gap-6 mt-4">
+                        <button 
+                          onClick={() => handleCommentLike(comment.id)}
+                          className={cn(
+                            "flex items-center gap-2 transition-colors font-medium",
+                            comment.likedBy?.includes(user?.uid || '') ? "text-primary" : "text-muted-foreground hover:text-primary"
+                          )}
+                        >
+                          <Heart size={16} className={comment.likedBy?.includes(user?.uid || '') ? "fill-primary" : ""} />
+                          <span className="text-sm">{comment.likes > 0 ? comment.likes : 'Like'}</span>
+                        </button>
+                        <button 
+                          onClick={() => setReplyTo(comment.id)}
+                          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-medium"
+                        >
+                          <Reply size={16} />
+                          <span className="text-sm">Reply</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Replies */}
+                    {comment.replies && comment.replies.length > 0 && (
+                      <div className="ml-6 mt-4 space-y-4 border-l-2 border-border pl-6">
+                        {comment.replies.map((reply: any) => (
+                          <div key={reply.id} className="flex gap-3 group/reply">
+                            <Link to={`/channel/${reply.userId}`} className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
+                              <img src={reply.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId}`} alt="User" className="w-full h-full object-cover" />
+                            </Link>
+                            <div className="flex-1 bg-muted/20 p-4 rounded-xl border border-border">
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <Link to={`/channel/${reply.userId}`} className="font-bold text-sm hover:text-primary transition-colors">{reply.userName}</Link>
+                                  <span className="text-muted-foreground text-[10px]">{formatDistanceToNow(new Date(reply.createdAt.toMillis ? reply.createdAt.toMillis() : reply.createdAt))} ago</span>
+                                </div>
+                                {(isAdmin || (user && reply.userId === user.uid)) && (
+                                  <button 
+                                    onClick={() => handleReplyDelete(comment.id, reply.id, reply.userId)}
+                                    className="text-red-500 hover:text-red-600 transition-colors p-1 opacity-0 group-hover/reply:opacity-100"
+                                    title="Delete Reply"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-sm text-foreground/80 mt-1">{reply.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reply Input */}
+                    {replyTo === comment.id && (
+                      <div className="ml-6 mt-4 flex gap-3">
+                        <input
+                          type="text"
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Write a reply..."
+                          className="flex-1 bg-muted border border-border rounded-xl px-4 py-2 focus:outline-none focus:border-primary transition-all text-sm text-foreground"
+                          autoFocus
+                        />
+                        <button 
+                          onClick={() => handleReplySubmit(comment.id)}
+                          className="bg-primary px-4 py-2 rounded-xl font-bold text-sm text-white hover:bg-primary/90 transition-all"
+                        >
+                          Reply
+                        </button>
+                        <button 
+                          onClick={() => setReplyTo(null)}
+                          className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Video Modal */}
+      {showDeleteVideoModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-black mb-4 text-red-500">Delete Video</h3>
+            <p className="text-muted-foreground mb-8">
+              Are you sure you want to delete this video? This will also delete all comments and replies. <strong className="text-foreground">THIS ACTION IS PERMANENT.</strong>
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowDeleteVideoModal(false)}
+                className="flex-1 bg-muted text-foreground py-3 rounded-xl font-bold hover:bg-muted/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDeleteVideo}
+                className="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+              >
+                Delete Video
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Watch;

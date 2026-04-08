@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users (Private)
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - email: string (required) - PII
+    //   - studentId: string (optional) - PII
+    //   - photoURL: string (optional)
+    //   - role: string (required)
+    //   - faculty: string (optional)
+    //   - levelOfStudy: string (optional)
+    //   - username: string (optional)
+    //   - savedVideos: list (optional)
+    //
+    // Collection: profiles (Public)
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - photoURL: string (optional)
+    //   - username: string (required)
+    //   - faculty: string (optional)
+    //   - levelOfStudy: string (optional)
+    //   - role: string (optional)
+    //
+    // Collection: videos
+    // Document ID: videoId
+    // Fields:
+    //   - title: string (required)
+    //   - creatorId: string (required)
+    //   - videoURL: string (required)
+    //   - thumbnailURL: string (optional)
+    //   - views: number (optional)
+    //   - likes: number (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: clubPosts
+    // Document ID: postId
+    // Fields:
+    //   - clubName: string (required)
+    //   - title: string (required)
+    //   - content: string (required)
+    //   - imageURL: string (optional)
+    //   - creatorId: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: products
+    // Document ID: productId
+    // Fields:
+    //   - name: string (required)
+    //   - price: number (required)
+    //   - sellerName: string (required)
+    //   - sellerId: string (required)
+    //   - campus: string (required) - Melaka or Cyberjaya
+    //   - imageURL: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "fcazlan@gmail.com" ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isMMU() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId != null;
+    }
+
+    function isBusinessPartner() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBusinessPartner', false) == true;
+    }
+
+    function canUpload() {
+      return isMMU() || isAdmin();
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role']) &&
+             data.uid is string && data.displayName is string &&
+             data.email is string && data.role in ['viewer', 'creator', 'admin'] &&
+             (!('displayName' in data) || data.displayName.size() < 100) &&
+             (!('bio' in data) || data.bio.size() < 1000);
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'username']) &&
+             data.uid is string && data.displayName is string &&
+             data.username is string &&
+             data.displayName.size() < 100 &&
+             data.username.size() < 50;
+    }
+
+    function isValidVideo(data) {
+      return data.keys().hasAll(['title', 'creatorId', 'videoURL', 'createdAt']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.creatorId is string && data.videoURL is string;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'sellerName', 'sellerId', 'campus', 'createdAt']) &&
+             data.name is string && data.name.size() < 100 &&
+             data.price is number && data.price >= 0 &&
+             data.sellerName is string && data.sellerId is string &&
+             data.campus in ['Melaka', 'Cyberjaya'] &&
+             data.createdAt is timestamp &&
+             (!('imageURL' in data) || (data.imageURL is string && data.imageURL.size() < 1000));
+    }
+
+    function isOnlyUpdatingViewsOrLikes() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'likes']);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /{path=**}/comments/{commentId} {
+      allow read: if true;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.fromUserId == request.auth.uid));
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.fromUserId == request.auth.uid));
+    }
+
+    match /users/{userId} {
+      allow read: if true; // Publicly readable for profiles and leaderboards
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'viewer' || isAdmin());
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin())) || 
+                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['followers', 'followerCount', 'following', 'followingCount']));
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    match /profiles/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId) && isValidProfile(request.resource.data);
+      allow delete: if isAdmin() || isOwner(userId);
+    }
+
+    match /videos/{videoId} {
+      allow read: if true;
+      allow create: if canUpload() && request.resource.data.creatorId == request.auth.uid && isValidVideo(request.resource.data);
+      allow update: if isAdmin() || (canUpload() && resource.data.creatorId == request.auth.uid && request.resource.data.creatorId == resource.data.creatorId && isValidVideo(request.resource.data)) || 
+                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'likedBy', 'views']));
+      allow delete: if isAdmin() || (canUpload() && resource.data.creatorId == request.auth.uid);
+    }
+
+    match /videos/{videoId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'likedBy', 'replies'])));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    match /clubPosts/{postId} {
+      allow read: if true;
+      allow create: if canUpload() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isAdmin() || (canUpload() && resource.data.creatorId == request.auth.uid);
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isMMU() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin() || (isMMU() && resource.data.userId == request.auth.uid);
+    }
+
+    match /applications/{applicationId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if (isAdmin() || isBusinessPartner()) && request.resource.data.sellerId == request.auth.uid && isValidProduct(request.resource.data);
+      allow update, delete: if isAdmin() || (isBusinessPartner() && resource.data.sellerId == request.auth.uid && request.resource.data.sellerId == resource.data.sellerId && isValidProduct(request.resource.data));
+    }
+  }
+}

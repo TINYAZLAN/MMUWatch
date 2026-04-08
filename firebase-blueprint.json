@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user of the platform (private data)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "studentId": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "faculty": { "type": "string" },
+        "levelOfStudy": { "type": "string" },
+        "username": { "type": "string" },
+        "savedVideos": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Represents a user's public profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "username": { "type": "string" },
+        "faculty": { "type": "string" },
+        "levelOfStudy": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["uid", "displayName", "username"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Represents a video uploaded to the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnailURL": { "type": "string" },
+        "videoURL": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "views": { "type": "integer" },
+        "likes": { "type": "integer" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "creatorId", "videoURL", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Represents a comment on a video",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "videoId": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "videoId", "userId", "text", "createdAt"]
+    },
+    "ClubPost": {
+      "title": "ClubPost",
+      "description": "Represents a marketing or event post from a university club",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clubName": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "imageURL": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clubName", "title", "content", "creatorId", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Represents a chat message between students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userName", "text", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Represents a product listed on the Explore page",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "sellerName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "campus": { "type": "string", "enum": ["Melaka", "Cyberjaya"] },
+        "imageURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price", "sellerName", "sellerId", "campus", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "Private user data" },
+    "/profiles/{userId}": { "schema": "Profile", "description": "Public user profile data" },
+    "/videos/{videoId}": { "schema": "Video", "description": "Video metadata" },
+    "/videos/{videoId}/comments/{commentId}": { "schema": "Comment", "description": "Comments on a video" },
+    "/clubPosts/{postId}": { "schema": "ClubPost", "description": "Club marketing and events" },
+    "/messages/{messageId}": { "schema": "Message", "description": "Global student chat messages" },
+    "/products/{productId}": { "schema": "Product", "description": "Products listed on the Explore page" }
+  }
+}
