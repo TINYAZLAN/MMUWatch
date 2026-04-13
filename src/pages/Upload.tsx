@@ -122,7 +122,7 @@ const Upload: React.FC = () => {
       toast.error('Description must be at least 10 characters long.');
       return;
     }
-    if (!formData.category && !selectedSubject) {
+    if (!formData.category && selectedSubject !== 'None' && selectedSubject !== '') {
       toast.error('Please select a category or subject.');
       return;
     }
@@ -173,7 +173,7 @@ const Upload: React.FC = () => {
         views: 0,
         likes: 0,
         dislikes: 0,
-        category: formData.category || selectedSubject,
+        category: formData.category || (selectedSubject === 'None' ? '' : selectedSubject),
         tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
         duration: isNaN(videoDuration) ? 0 : videoDuration,
         createdAt: serverTimestamp()
