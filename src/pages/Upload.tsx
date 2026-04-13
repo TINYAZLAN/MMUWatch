@@ -334,6 +334,21 @@ const Upload: React.FC = () => {
                 </div>
               </div>
 
+              {isSubmitting && uploadProgress > 0 && (
+                <div className="space-y-2 pt-2 pb-2">
+                  <div className="flex justify-between text-sm font-bold text-muted-foreground">
+                    <span>Uploading Video...</span>
+                    <span>{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-3 overflow-hidden border border-border">
+                    <div 
+                      className="bg-primary h-full rounded-full transition-all duration-300 ease-out" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
             <div className="pt-4 border-t border-border flex justify-end gap-4">
               <button type="button" onClick={() => navigate('/')} className="px-6 py-2 font-bold hover:bg-muted rounded-full transition-colors">
                 Cancel
