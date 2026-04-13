@@ -198,7 +198,8 @@ const Upload: React.FC = () => {
     }
   };
 
-  const isMMU = !!profile?.studentId || user?.email === 'fcazlan@gmail.com';
+  const isMMU = !!profile?.studentId || user?.email === 'fcazlan@gmail.com' || user?.email?.endsWith('@mmu.edu.my');
+  const isStaff = !profile?.studentId;
 
   if (!isMMU) {
     return (
@@ -219,9 +220,9 @@ const Upload: React.FC = () => {
         <h1 className="text-3xl font-black tracking-tighter">Upload Video</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className={cn("grid grid-cols-1 gap-8", isStaff ? "lg:grid-cols-1 max-w-3xl mx-auto" : "lg:grid-cols-3")}>
         {/* Left: Upload Form */}
-        <div className="lg:col-span-2 bg-card p-8 rounded-3xl border border-border shadow-2xl">
+        <div className={cn("bg-card p-8 rounded-3xl border border-border shadow-2xl", !isStaff && "lg:col-span-2")}>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* File Dropzone */}
             <div className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-primary transition-colors relative cursor-pointer bg-muted/30">
@@ -310,10 +311,11 @@ const Upload: React.FC = () => {
                       value={selectedSubject}
                       onChange={(e) => {
                         setSelectedSubject(e.target.value);
-                        setFormData({ ...formData, category: e.target.value });
+                        setFormData({ ...formData, category: e.target.value === 'None' ? '' : e.target.value });
                       }}
                       className="w-full bg-muted border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary transition-all text-foreground appearance-none"
                     >
+                      <option value="None">None</option>
                       {availableSubjects.map(subject => (
                         <option key={subject} value={subject}>{subject}</option>
                       ))}
@@ -353,80 +355,83 @@ const Upload: React.FC = () => {
         </div>
 
         {/* Right: Assignment Tracker */}
-        <div className="bg-card p-6 rounded-3xl border border-border shadow-2xl h-fit sticky top-24">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="text-yellow-500" size={24} />
-            <h3 className="text-xl font-bold">Assignment Tracker</h3>
-          </div>
-          
-          <div className="mb-4 space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Your Faculty</label>
-            <div className="w-full bg-muted border border-border rounded-xl py-2 px-3 text-muted-foreground text-sm">
-              {userFaculty}
+        {!isStaff && (
+          <div className="bg-card p-6 rounded-3xl border border-border shadow-2xl h-fit sticky top-24">
+            <div className="flex items-center gap-2 mb-6">
+              <Sparkles className="text-yellow-500" size={24} />
+              <h3 className="text-xl font-bold">Assignment Tracker</h3>
             </div>
-            <p className="text-[10px] text-muted-foreground/60 italic">Locked to your profile faculty</p>
-          </div>
-
-          <div className="mb-6 space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Select Subject</label>
-            <select 
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full bg-muted border border-border rounded-xl py-2 px-3 focus:outline-none focus:border-primary transition-all text-foreground text-sm"
-            >
-              <option value="" disabled>Choose your subject</option>
-              {availableSubjects.map(subject => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-          </div>
-
-          {selectedSubject ? (
-            <>
-              <p className="text-sm text-muted-foreground mb-6">
-                Uploading for a class? We automatically check your file name against pending assignments.
-              </p>
-
-              <div className="space-y-4">
-                {assignments.map(assignment => (
-                  <div 
-                    key={assignment.id} 
-                    className={cn(
-                      "p-4 rounded-xl border transition-all flex flex-col gap-2",
-                      assignment.done 
-                        ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400" 
-                        : "bg-muted border-border text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm">{assignment.name}</span>
-                      {assignment.done ? <CheckCircle2 size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-border" />}
-                    </div>
-                    <div className="text-[10px] opacity-60 bg-muted/50 p-2 rounded">
-                      <span className="font-bold uppercase">Example Format:</span> {assignment.exampleFormat}
-                    </div>
-                    {!assignment.done && (
-                      <div className="text-[10px] italic">
-                        Keyword: <span className="font-mono">"{assignment.keyword}"</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+            
+            <div className="mb-4 space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Your Faculty</label>
+              <div className="w-full bg-muted border border-border rounded-xl py-2 px-3 text-muted-foreground text-sm">
+                {userFaculty}
               </div>
-
-              {assignments.some(a => a.done) && (
-                <div className="mt-6 bg-green-500/10 text-green-600 dark:text-green-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-green-500/20">
-                  <CheckCircle2 size={16} />
-                  Assignment requirement met!
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground/40 text-sm">
-              Please select a subject to view your pending assignments.
+              <p className="text-[10px] text-muted-foreground/60 italic">Locked to your profile faculty</p>
             </div>
-          )}
-        </div>
+
+            <div className="mb-6 space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Select Subject</label>
+              <select 
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full bg-muted border border-border rounded-xl py-2 px-3 focus:outline-none focus:border-primary transition-all text-foreground text-sm"
+              >
+                <option value="" disabled>Choose your subject</option>
+                <option value="None">None</option>
+                {availableSubjects.map(subject => (
+                  <option key={subject} value={subject}>{subject}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedSubject && selectedSubject !== 'None' ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Uploading for a class? We automatically check your file name against pending assignments.
+                </p>
+
+                <div className="space-y-4">
+                  {assignments.map(assignment => (
+                    <div 
+                      key={assignment.id} 
+                      className={cn(
+                        "p-4 rounded-xl border transition-all flex flex-col gap-2",
+                        assignment.done 
+                          ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400" 
+                          : "bg-muted border-border text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">{assignment.name}</span>
+                        {assignment.done ? <CheckCircle2 size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-border" />}
+                      </div>
+                      <div className="text-[10px] opacity-60 bg-muted/50 p-2 rounded">
+                        <span className="font-bold uppercase">Example Format:</span> {assignment.exampleFormat}
+                      </div>
+                      {!assignment.done && (
+                        <div className="text-[10px] italic">
+                          Keyword: <span className="font-mono">"{assignment.keyword}"</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {assignments.some(a => a.done) && (
+                  <div className="mt-6 bg-green-500/10 text-green-600 dark:text-green-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-green-500/20">
+                    <CheckCircle2 size={16} />
+                    Assignment requirement met!
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground/40 text-sm">
+                Please select a subject to view your pending assignments.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
