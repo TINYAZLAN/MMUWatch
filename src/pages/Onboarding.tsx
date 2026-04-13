@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 
 import { FACULTIES, DEPARTMENTS } from '../constants';
 
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+
 const Onboarding: React.FC = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -17,8 +19,7 @@ const Onboarding: React.FC = () => {
     department: DEPARTMENTS[0],
     studentId: '',
     displayName: '',
-    username: '',
-    isStaff: false
+    username: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,11 +28,6 @@ const Onboarding: React.FC = () => {
     // If already onboarded, redirect
     if (profile?.studentId) {
       navigate('/');
-    }
-    
-    // Initial guess for staff based on email
-    if (user?.email?.toLowerCase().endsWith('@mmu.edu.my') && !user?.email?.toLowerCase().includes('student')) {
-      setFormData(prev => ({ ...prev, isStaff: true }));
     }
   }, [profile, navigate, user]);
 
@@ -43,15 +39,11 @@ const Onboarding: React.FC = () => {
     return null;
   }
 
-  const isStaff = formData.isStaff;
+  const isStaff = user?.email?.toLowerCase().endsWith('@mmu.edu.my') && !user?.email?.toLowerCase().includes('student');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target as HTMLInputElement;
-    if (type === 'checkbox') {
-      setFormData({ ...formData, [name]: (e.target as HTMLInputElement).checked });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,6 +62,7 @@ const Onboarding: React.FC = () => {
       toast.error("Student ID must be in format XXXYYZZZZZ (e.g. 121AA12345)");
       return;
     }
+
     if (isStaff && !/^MM\d{5}$/.test(formData.studentId)) {
       toast.error('Staff ID must be in format MMXXXXX (e.g. MM12345)');
       return;
@@ -125,6 +118,7 @@ const Onboarding: React.FC = () => {
       window.location.href = '/';
     } catch (error) {
       console.error('Error saving profile:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
       toast.error('Failed to save profile. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -135,18 +129,6 @@ const Onboarding: React.FC = () => {
     <div className="max-w-md mx-auto mt-20 p-6 bg-card border border-border rounded-2xl shadow-xl">
       <h2 className="text-2xl font-black mb-6 text-center tracking-tight">Complete Your Profile</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex items-center gap-2 p-3 bg-muted border border-border rounded-lg mb-4">
-          <input 
-            type="checkbox" 
-            id="isStaff" 
-            name="isStaff" 
-            checked={formData.isStaff}
-            onChange={handleChange}
-            className="w-5 h-5 accent-primary"
-          />
-          <label htmlFor="isStaff" className="text-sm font-bold cursor-pointer">I am an MMU Staff / Administrator</label>
-        </div>
-
         {isStaff ? (
           <div>
             <label className="block text-sm font-bold mb-1">Department / Office</label>

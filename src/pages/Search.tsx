@@ -30,11 +30,11 @@ const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
     >
       <Link to={getLink()} className="block">
         <div className="aspect-video relative overflow-hidden bg-muted">
-          <img 
+          <img referrerPolicy="no-referrer"   
             src={result.imageURL || result.thumbnailURL || `https://picsum.photos/seed/${result.id}/800/450`} 
             alt={result.title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            referrerPolicy="no-referrer"
+            
           />
           <div className="absolute top-3 left-3">
             <span className={cn(

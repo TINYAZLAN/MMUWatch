@@ -246,7 +246,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <header className={cn("fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 z-50 border-b shadow-lg transition-colors duration-300 bg-card border-border")}>
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2 group">
-            <img src="MMU LOGO.svg" alt="MMU Logo" className="h-8 bg-white p-1 rounded-md group-hover:opacity-90 transition-opacity" />
+            <img referrerPolicy="no-referrer" src="MMU LOGO.svg" alt="MMU Logo" className="h-8 bg-white p-1 rounded-md group-hover:opacity-90 transition-opacity" />
             <span className={cn("text-2xl font-black tracking-tighter transition-colors text-foreground group-hover:text-primary")}>MMUWatch</span>
           </Link>
 
@@ -288,12 +288,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           
           {user ? (
             <>
-              {isAdmin && (
-                <Link to="/upload" className="hidden sm:flex items-center gap-2 bg-primary text-white px-4 py-1.5 rounded-full font-bold hover:bg-primary/90 transition-colors">
-                  <Upload size={18} />
-                  Upload
-                </Link>
-              )}
+              <Link to="/upload" className="hidden sm:flex items-center gap-2 bg-primary text-white px-4 py-1.5 rounded-full font-bold hover:bg-primary/90 transition-colors">
+                <Upload size={18} />
+                Upload
+              </Link>
               <div className="relative">
                 <button 
                   onClick={() => {
@@ -363,7 +361,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   }}
                   className={cn("w-9 h-9 rounded-full overflow-hidden border-2 transition-colors border-border hover:border-primary")}
                 >
-                  <img src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="Profile" />
+                  <img referrerPolicy="no-referrer" src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="Profile" />
                 </button>
                 
                 {isProfileOpen && (
@@ -373,6 +371,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       <p className={cn("text-xs truncate text-muted-foreground")}>{user.email}</p>
                       {isAdmin && <span className="inline-block mt-1 text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">Admin</span>}
                     </div>
+                    <Link to="/upload" onClick={() => setIsProfileOpen(false)} className={cn("sm:hidden block px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-muted text-primary")}>Upload Video</Link>
                     <Link to={`/profile`} onClick={() => setIsProfileOpen(false)} className={cn("block px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-muted")}>Your Profile</Link>
                     <button 
                       onClick={() => { toggleTheme(); setIsProfileOpen(false); }} 

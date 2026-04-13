@@ -144,25 +144,34 @@ const Profile: React.FC = () => {
     if (!user) return;
     setSaving(true);
     try {
+      const validRoles = ['viewer', 'creator', 'admin'];
+      const userRole = validRoles.includes(profile?.role || '') ? profile?.role : 'viewer';
+
       await setDoc(doc(db, 'users', user.uid), { 
-        username,
-        levelOfStudy,
-        department,
-        subjects,
-        photoURL
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || 'User',
+        role: userRole,
+        username: username || '',
+        levelOfStudy: levelOfStudy || '',
+        department: department || '',
+        subjects: subjects || [],
+        photoURL: photoURL || ''
       }, { merge: true });
       
-      // Also update public profile
       await setDoc(doc(db, 'profiles', user.uid), {
-        username,
-        levelOfStudy,
-        department,
-        photoURL
+        uid: user.uid,
+        displayName: user.displayName || 'User',
+        username: username || '',
+        levelOfStudy: levelOfStudy || '',
+        department: department || '',
+        photoURL: photoURL || ''
       }, { merge: true });
 
       toast.success("Profile updated successfully!");
     } catch (error) {
       console.error("Error saving profile:", error);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
       toast.error("Failed to update profile.");
     } finally {
       setSaving(false);
@@ -277,11 +286,11 @@ const Profile: React.FC = () => {
       {/* Profile Header */}
       <div className="bg-card rounded-3xl p-8 border border-border shadow-sm flex flex-col md:flex-row items-center md:items-start gap-8">
         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-          <img 
+          <img referrerPolicy="no-referrer"   
             src={photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
             alt={user.displayName || 'User'} 
             className="w-32 h-32 rounded-3xl border-4 border-primary object-cover bg-muted shadow-xl"
-            referrerPolicy="no-referrer"
+            
           />
           <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <Camera size={24} className="text-white" />
@@ -374,13 +383,13 @@ const Profile: React.FC = () => {
                           return (
                             <tr 
                               key={video.id} 
-                              onClick={() => navigate(`/watch/${video.videoId || video.id}`)}
+                              onClick={() => navigate(`/watch/${video.id}`)}
                               className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer group"
                             >
                               <td className="p-5">
                                 <div className="flex items-center gap-4">
                                   <div className="w-24 h-14 bg-muted rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-                                    <img src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                    <img referrerPolicy="no-referrer" src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                   </div>
                                   <div>
                                     <p className="font-black text-sm line-clamp-1 group-hover:text-primary transition-colors">{video.title}</p>
@@ -482,11 +491,11 @@ const Profile: React.FC = () => {
                 <div className="space-y-8">
                   <div className="flex flex-col items-center gap-4 mb-8">
                     <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                      <img 
+                      <img referrerPolicy="no-referrer"   
                         src={photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} 
                         alt="Profile Preview" 
                         className="w-28 h-28 rounded-3xl border-4 border-primary object-cover bg-muted shadow-xl"
-                        referrerPolicy="no-referrer"
+                        
                       />
                       <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera size={24} className="text-white" />

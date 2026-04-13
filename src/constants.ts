@@ -6,6 +6,7 @@ export const FACULTIES = [
 ];
 
 export const DEPARTMENTS = [
+  "Lecturer",
   "Student Affairs Division",
   "Academic Affairs Office",
   "Finance Department",

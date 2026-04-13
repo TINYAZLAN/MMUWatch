@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthProvider';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,10 +15,12 @@ const Upload: React.FC = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [fileName, setFileName] = useState('');
   const [fileObj, setFileObj] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -26,7 +29,7 @@ const Upload: React.FC = () => {
     tags: ''
   });
 
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
   const userFaculty = profile?.faculty || FACULTIES[0];
   const availableSubjects = SUBJECTS_BY_FACULTY[userFaculty] || [];
@@ -54,6 +57,12 @@ const Upload: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const isMp4 = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.mp4v');
+      if (!isMp4) {
+        toast.error('Only MP4 or MP4V video files are allowed.');
+        e.target.value = '';
+        return;
+      }
       if (file.size > MAX_FILE_SIZE) {
         toast.error(`File is too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
         e.target.value = '';
@@ -71,6 +80,20 @@ const Upload: React.FC = () => {
       if (!formData.title) {
         setFormData(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, "") }));
       }
+
+      // Extract duration
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        if (!isNaN(video.duration) && video.duration !== Infinity) {
+          setVideoDuration(video.duration);
+        }
+      };
+      video.onerror = () => {
+        window.URL.revokeObjectURL(video.src);
+      };
+      video.src = URL.createObjectURL(file);
     }
   };
 
@@ -84,10 +107,6 @@ const Upload: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const generateVideoId = () => {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,17 +129,44 @@ const Upload: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const videoId = generateVideoId();
-      // In a real app, upload file to Firebase Storage here.
-      const mockVideoURL = "https://www.w3schools.com/html/mov_bbb.mp4";
-      const finalThumbnail = thumbnailPreview || `https://picsum.photos/seed/${videoId}/1280/720`;
+      // Upload video to Firebase Storage
+      const videoRef = ref(storage, `videos/${user.uid}/${Date.now()}_${fileObj.name}`);
+      const uploadTask = uploadBytesResumable(videoRef, fileObj);
 
-      await addDoc(collection(db, 'videos'), {
-        videoId: videoId,
+      // Wait for upload to complete
+      const videoURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          },
+          (error) => {
+            console.error("Storage upload error:", error);
+            if (error.code === 'storage/canceled') {
+               reject(new Error("Upload was canceled."));
+            } else {
+               reject(new Error("Failed to upload video. Please ensure Firebase Storage is enabled and rules allow uploads."));
+            }
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(downloadURL);
+            } catch (err) {
+              reject(err);
+            }
+          }
+        );
+      });
+
+      const finalThumbnail = thumbnailPreview || `https://picsum.photos/seed/${Date.now()}/1280/720`;
+
+      const docRef = await addDoc(collection(db, 'videos'), {
         title: formData.title,
         description: formData.description,
         thumbnailURL: finalThumbnail,
-        videoURL: mockVideoURL,
+        videoURL: videoURL,
         creatorId: user.uid,
         creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
         creatorFaculty: userFaculty,
@@ -129,19 +175,26 @@ const Upload: React.FC = () => {
         dislikes: 0,
         category: formData.category || selectedSubject,
         tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+        duration: isNaN(videoDuration) ? 0 : videoDuration,
         createdAt: serverTimestamp()
       });
 
       toast.success('Video uploaded successfully!');
-      navigate(`/watch/${videoId}`);
+      navigate(`/watch/${docRef.id}`);
     } catch (error) {
       console.error('Error uploading video:', error);
-      if (error instanceof Error && error.message.includes('permission')) {
-        handleFirestoreError(error, OperationType.CREATE, 'videos');
+      if (error instanceof Error) {
+        if (error.message.includes('permission')) {
+          handleFirestoreError(error, OperationType.CREATE, 'videos');
+        } else {
+          toast.error(error.message, { duration: 6000 });
+        }
+      } else {
+        toast.error('Upload failed. Please try again.');
       }
-      toast.error('Upload failed. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -191,7 +244,7 @@ const Upload: React.FC = () => {
                 ) : (
                   <div className="space-y-1">
                     <p className="font-bold text-lg text-foreground">Drag and drop video files to upload</p>
-                    <p className="text-sm text-muted-foreground">Max file size: 100MB. Your videos will be private until you publish them.</p>
+                    <p className="text-sm text-muted-foreground">Max file size: 50MB. Your videos will be private until you publish them.</p>
                   </div>
                 )}
                 <button type="button" className="bg-primary text-white px-6 py-2 rounded-full font-bold mt-2">
@@ -206,7 +259,7 @@ const Upload: React.FC = () => {
                   <div className="flex items-center gap-4">
                     <div className="w-40 h-24 bg-muted border border-border rounded-xl overflow-hidden flex items-center justify-center relative">
                       {thumbnailPreview ? (
-                        <img src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                        <img referrerPolicy="no-referrer" src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="text-muted-foreground/40 text-xs text-center p-2">No thumbnail selected</div>
                       )}
@@ -288,7 +341,12 @@ const Upload: React.FC = () => {
                 disabled={isSubmitting || !fileObj}
                 className="bg-primary text-white px-8 py-2 rounded-full font-bold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {isSubmitting ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div> : 'Publish Video'}
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                    {uploadProgress > 0 && uploadProgress < 100 ? `Uploading ${Math.round(uploadProgress)}%` : 'Publishing...'}
+                  </>
+                ) : 'Publish Video'}
               </button>
             </div>
           </form>

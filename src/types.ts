@@ -61,6 +61,7 @@ export interface VideoMetadata {
   tags?: string[];
   summary?: string;
   highlights?: VideoHighlight[];
+  duration?: number;
 }
 
 export interface Comment {

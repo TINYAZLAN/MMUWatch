@@ -309,11 +309,11 @@ const Explore: React.FC = () => {
           {events.map(event => (
             <div key={event.id} className="bg-card rounded-3xl overflow-hidden border border-border shadow-sm group hover:shadow-xl transition-all duration-300">
               <div className="h-48 relative overflow-hidden">
-                <img 
+                <img referrerPolicy="no-referrer"   
                   src={event.imageURL || `https://picsum.photos/seed/event-${event.id}/800/400`} 
                   alt={event.title} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
+                  
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
                 <div className="absolute top-4 right-4 flex gap-2">
@@ -446,7 +446,7 @@ const Explore: React.FC = () => {
             {products.map(product => (
               <div key={product.id} className="relative group bg-card rounded-3xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-all duration-300">
                 <div className="aspect-square relative overflow-hidden">
-                  <img 
+                  <img referrerPolicy="no-referrer" 
                     src={product.imageURL || `https://picsum.photos/seed/product-${product.id}/400/400`} 
                     alt={product.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"

@@ -5,7 +5,7 @@ import { auth, db } from '../firebase';
 import { VideoMetadata, Comment } from '../types';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2 } from 'lucide-react';
+import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
@@ -25,17 +25,39 @@ const Watch: React.FC = () => {
   const [newComment, setNewComment] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [showRepliesFor, setShowRepliesFor] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
   const videoRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const navigate = useNavigate();
+
+  const toggleReplies = (commentId: string) => {
+    setShowRepliesFor(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
 
   const isSaved = profile?.savedVideos?.includes(video?.id || '');
   const isLiked = video?.likedBy?.includes(user?.uid || '');
   const isFollowing = profile?.following?.includes(video?.creatorId || '');
 
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
+
+  const videoSrc = video?.videoURL || (video as any)?.url;
+
+  const hasIncrementedViews = useRef(false);
+
+  useEffect(() => {
+    hasIncrementedViews.current = false;
+  }, [routeVideoId]);
 
   const handleDeleteVideo = () => {
     if (!video || !user) return;
@@ -300,113 +322,162 @@ const Watch: React.FC = () => {
 
   useEffect(() => {
     let unsubscribeUploader: (() => void) | null = null;
+    let unsubscribeVideo: (() => void) | null = null;
+    let unsubscribeComments: (() => void) | null = null;
 
-    const fetchVideo = async () => {
-      if (!routeVideoId) return;
-      try {
-        // Search by videoId field
-        const q = query(collection(db, 'videos'), where('videoId', '==', routeVideoId), limit(1));
-        const querySnapshot = await getDocs(q);
+    if (!routeVideoId) {
+      setError('No video ID provided');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const docRef = doc(db, 'videos', routeVideoId);
+    
+    unsubscribeVideo = onSnapshot(docRef, async (snap) => {
+      if (snap.exists()) {
+        const videoData = { id: snap.id, ...snap.data() } as VideoMetadata;
+        setVideo(videoData);
         
-        let videoDocId: string | null = null;
-
-        if (!querySnapshot.empty) {
-          videoDocId = querySnapshot.docs[0].id;
-        } else {
-          // Fallback to direct ID if not found by videoId field (for older videos)
-          const directDoc = await getDoc(doc(db, 'videos', routeVideoId));
-          if (directDoc.exists()) {
-            videoDocId = directDoc.id;
-          }
-        }
-
-        if (videoDocId) {
-          // Real-time video data
-          const unsubscribeVideo = onSnapshot(doc(db, 'videos', videoDocId), (snapshot) => {
-            if (snapshot.exists()) {
-              const videoData = { id: snapshot.id, ...snapshot.data() } as VideoMetadata;
-              setVideo(videoData);
-              
-              // Fetch uploader profile in real-time
-              if (!unsubscribeUploader) {
-                unsubscribeUploader = onSnapshot(doc(db, 'users', videoData.creatorId), (userSnapshot) => {
-                  if (userSnapshot.exists()) {
-                    setUploaderProfile(userSnapshot.data());
-                  }
-                });
-              }
+        // Fetch uploader profile in real-time
+        if (!unsubscribeUploader) {
+          unsubscribeUploader = onSnapshot(doc(db, 'users', videoData.creatorId), (userSnapshot) => {
+            if (userSnapshot.exists()) {
+              setUploaderProfile(userSnapshot.data());
             }
           });
+        }
 
-          // Real-time comments
-          const commentsQ = query(collection(db, 'videos', videoDocId, 'comments'), orderBy('createdAt', 'desc'));
-          const unsubscribeComments = onSnapshot(commentsQ, (snapshot) => {
-            setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment)));
-          }, (error) => {
-            console.error("Error fetching comments:", error);
-          });
-
-          // Increment views once
+        // Increment views once
+        if (!hasIncrementedViews.current) {
+          hasIncrementedViews.current = true;
           try {
-            await updateDoc(doc(db, 'videos', videoDocId), { views: increment(1) });
+            await updateDoc(docRef, { views: increment(1) });
           } catch (e) {
             console.warn("Could not increment views", e);
           }
-
-          // Fetch 5 recommendations (static for now, or could be real-time)
-          const recsQ = query(collection(db, 'videos'), limit(5));
-          const recsSnapshot = await getDocs(recsQ);
-          setRecommendations(recsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata)));
-
-          return () => {
-            unsubscribeVideo();
-            unsubscribeComments();
-            if (unsubscribeUploader) unsubscribeUploader();
-          };
+          
+          // Fetch recommendations
+          try {
+            const recsQ = query(collection(db, 'videos'), limit(5));
+            const recsSnapshot = await getDocs(recsQ);
+            setRecommendations(recsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)));
+          } catch (e) {
+            console.warn("Could not fetch recommendations", e);
+          }
         }
-      } catch (error) {
-        console.error('Error fetching video:', error);
-      } finally {
+        
+        setLoading(false);
+      } else {
+        setError('Video not found');
         setLoading(false);
       }
-    };
+    }, (err) => {
+      console.error("Error fetching video:", err);
+      setError('Error fetching video');
+      setLoading(false);
+    });
 
-    const cleanupPromise = fetchVideo();
+    // Real-time comments
+    const commentsQ = query(collection(db, 'videos', routeVideoId, 'comments'), orderBy('createdAt', 'desc'));
+    unsubscribeComments = onSnapshot(commentsQ, (snap) => {
+      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Comment)));
+    }, (err) => {
+      console.error("Error fetching comments:", err);
+    });
 
     return () => {
-      cleanupPromise.then(cleanup => cleanup && cleanup());
+      if (unsubscribeVideo) unsubscribeVideo();
+      if (unsubscribeComments) unsubscribeComments();
+      if (unsubscribeUploader) unsubscribeUploader();
     };
   }, [routeVideoId]);
 
   useEffect(() => {
-    if (!video || !videoRef.current) return;
+    if (!videoSrc || !videoRef.current) {
+      if (video && !videoSrc) {
+        setError('Video source not found');
+      }
+      return;
+    }
 
     if (!playerRef.current) {
-      const videoElement = document.createElement('video-js');
-      videoElement.classList.add('vjs-big-play-centered', 'vjs-theme-city');
+      const videoElement = document.createElement('video');
+      videoElement.classList.add('video-js', 'vjs-big-play-centered', 'vjs-theme-mmu');
       videoRef.current.appendChild(videoElement);
 
-      const player = playerRef.current = videojs(videoElement, {
+      playerRef.current = videojs(videoElement, {
         autoplay: false,
         controls: true,
         responsive: true,
         fluid: true,
-        sources: [{ src: video.videoURL, type: 'video/mp4' }]
+        sources: [{ src: videoSrc, type: 'video/mp4' }],
+        controlBar: {
+          children: [
+            'playToggle',
+            'volumePanel',
+            'currentTimeDisplay',
+            'timeDivider',
+            'durationDisplay',
+            'progressControl',
+            'fullscreenToggle',
+          ]
+        }
       });
     } else {
-      playerRef.current.src({ src: video.videoURL, type: 'video/mp4' });
+      const currentSrc = playerRef.current.src();
+      if (currentSrc !== videoSrc) {
+        playerRef.current.src({ src: videoSrc, type: 'video/mp4' });
+      }
     }
+  }, [videoSrc, video]);
 
+  // Clean up player on unmount or when route changes
+  useEffect(() => {
     return () => {
       if (playerRef.current) {
         playerRef.current.dispose();
         playerRef.current = null;
       }
     };
-  }, [video]);
+  }, [routeVideoId]);
 
-  if (loading) return <div className="flex items-center justify-center h-[80vh]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
-  if (!video) return <div className="text-center py-20">Video not found.</div>;
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto pb-20 px-4 pt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-2 hidden lg:block">
+            <div className="bg-muted animate-pulse h-64 rounded-3xl"></div>
+          </div>
+          <div className="lg:col-span-7 space-y-4">
+            <div className="w-full aspect-video bg-muted animate-pulse rounded-2xl"></div>
+            <div className="h-8 bg-muted animate-pulse rounded w-3/4"></div>
+            <div className="h-4 bg-muted animate-pulse rounded w-1/2"></div>
+          </div>
+          <div className="lg:col-span-3 hidden lg:block space-y-4">
+            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
+            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
+            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !video) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+        <AlertCircle size={64} className="text-red-500" />
+        <h2 className="text-2xl font-bold">Oops! Something went wrong</h2>
+        <p className="text-muted-foreground">{error || 'Video not found or has been removed.'}</p>
+        <button onClick={() => navigate('/')} className="bg-primary text-white px-6 py-2 rounded-full font-bold mt-4 hover:bg-primary/90 transition-colors">
+          Go back home
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto pb-20 px-4">
@@ -416,7 +487,7 @@ const Watch: React.FC = () => {
           <div className="bg-card p-6 rounded-3xl border border-border shadow-sm sticky top-24">
             <div className="flex flex-col items-center text-center space-y-4">
               <Link to={`/channel/${video.creatorId}`} className="w-20 h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-xl">
-                <img src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
+                <img referrerPolicy="no-referrer" src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
               </Link>
               <div>
                 <Link to={`/channel/${video.creatorId}`} className="text-lg font-black hover:text-primary transition-colors flex items-center justify-center gap-1">
@@ -554,7 +625,7 @@ const Watch: React.FC = () => {
           {user ? (
             <div className="flex gap-4 mb-10">
               <div className="w-12 h-12 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
-                <img src={profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="Me" className="w-full h-full object-cover" />
+                <img referrerPolicy="no-referrer" src={profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="Me" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 relative">
                 <textarea
@@ -588,7 +659,7 @@ const Watch: React.FC = () => {
               <div key={comment.id} className="group">
                 <div className="flex gap-4">
                   <Link to={`/channel/${comment.userId}`} className="w-10 h-10 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
-                    <img src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`} alt="User" className="w-full h-full object-cover" />
+                    <img referrerPolicy="no-referrer" src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`} alt="User" className="w-full h-full object-cover" />
                   </Link>
                   <div className="flex-1">
                     <div className="bg-muted/30 p-6 rounded-2xl border border-border group-hover:border-primary/20 transition-all">
@@ -631,18 +702,28 @@ const Watch: React.FC = () => {
                           <Reply size={16} />
                           <span className="text-sm">Reply</span>
                         </button>
+                        {comment.replies && comment.replies.length > 0 && (
+                          <button 
+                            onClick={() => toggleReplies(comment.id)}
+                            className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors font-medium ml-auto bg-primary/10 px-3 py-1.5 rounded-full"
+                          >
+                            <span className="text-sm font-bold">{showRepliesFor.has(comment.id) ? 'Hide' : 'Show'} {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}</span>
+                            {showRepliesFor.has(comment.id) ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     {/* Replies */}
-                    {comment.replies && comment.replies.length > 0 && (
-                      <div className="ml-6 mt-4 space-y-4 border-l-2 border-border pl-6">
+                    {showRepliesFor.has(comment.id) && comment.replies && comment.replies.length > 0 && (
+                      <div className="ml-12 mt-4 space-y-4 relative before:absolute before:inset-y-0 before:-left-6 before:w-px before:bg-border/50">
                         {comment.replies.map((reply: any) => (
-                          <div key={reply.id} className="flex gap-3 group/reply">
-                            <Link to={`/channel/${reply.userId}`} className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0">
-                              <img src={reply.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId}`} alt="User" className="w-full h-full object-cover" />
+                          <div key={reply.id} className="flex gap-3 group/reply relative">
+                            <div className="absolute top-4 -left-6 w-4 h-px bg-border/50"></div>
+                            <Link to={`/channel/${reply.userId}`} className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border flex-shrink-0 z-10">
+                              <img referrerPolicy="no-referrer" src={reply.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.userId}`} alt="User" className="w-full h-full object-cover" />
                             </Link>
-                            <div className="flex-1 bg-muted/20 p-4 rounded-xl border border-border">
+                            <div className="flex-1 bg-muted/10 hover:bg-muted/20 transition-colors p-4 rounded-2xl border border-border/50">
                               <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
                                   <Link to={`/channel/${reply.userId}`} className="font-bold text-sm hover:text-primary transition-colors">{reply.userName}</Link>
@@ -658,7 +739,7 @@ const Watch: React.FC = () => {
                                   </button>
                                 )}
                               </div>
-                              <p className="text-sm text-foreground/80 mt-1">{reply.text}</p>
+                              <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{reply.text}</p>
                             </div>
                           </div>
                         ))}
@@ -667,24 +748,25 @@ const Watch: React.FC = () => {
 
                     {/* Reply Input */}
                     {replyTo === comment.id && (
-                      <div className="ml-6 mt-4 flex gap-3">
+                      <div className="ml-12 mt-4 flex gap-3 relative before:absolute before:inset-y-0 before:-left-6 before:w-px before:bg-border/50">
+                        <div className="absolute top-6 -left-6 w-4 h-px bg-border/50"></div>
                         <input
                           type="text"
                           value={replyText}
                           onChange={(e) => setReplyText(e.target.value)}
                           placeholder="Write a reply..."
-                          className="flex-1 bg-muted border border-border rounded-xl px-4 py-2 focus:outline-none focus:border-primary transition-all text-sm text-foreground"
+                          className="flex-1 bg-muted/30 border border-border/50 rounded-2xl px-4 py-3 focus:outline-none focus:border-primary transition-all text-sm text-foreground z-10"
                           autoFocus
                         />
                         <button 
                           onClick={() => handleReplySubmit(comment.id)}
-                          className="bg-primary px-4 py-2 rounded-xl font-bold text-sm text-white hover:bg-primary/90 transition-all"
+                          className="bg-primary px-6 py-3 rounded-2xl font-bold text-sm text-white hover:bg-primary/90 transition-all z-10"
                         >
                           Reply
                         </button>
                         <button 
                           onClick={() => setReplyTo(null)}
-                          className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+                          className="text-muted-foreground hover:text-foreground transition-colors text-sm px-2 z-10"
                         >
                           Cancel
                         </button>

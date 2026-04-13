@@ -73,9 +73,14 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isStaffEmail() {
+      return isAuthenticated() && request.auth.token.email != null && request.auth.token.email.matches('.*@mmu\\.edu\\.my') && !request.auth.token.email.matches('.*@student\\.mmu\\.edu\\.my');
+    }
+
     function isAdmin() {
       return isAuthenticated() &&
         (request.auth.token.email == "fcazlan@gmail.com" ||
+         isStaffEmail() ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
@@ -97,16 +102,16 @@ service cloud.firestore {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'role']) &&
              data.uid is string && data.displayName is string &&
              data.email is string && data.role in ['viewer', 'creator', 'admin'] &&
-             (!('displayName' in data) || data.displayName.size() < 100) &&
-             (!('bio' in data) || data.bio.size() < 1000);
+             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('bio' in data) || data.bio == null || (data.bio is string && data.bio.size() < 1000));
     }
 
     function isValidProfile(data) {
       return data.keys().hasAll(['uid', 'displayName', 'username']) &&
              data.uid is string && data.displayName is string &&
              data.username is string &&
-             data.displayName.size() < 100 &&
-             data.username.size() < 50;
+             (!('displayName' in data) || data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('username' in data) || data.username == null || (data.username is string && data.username.size() < 50));
     }
 
     function isValidVideo(data) {
@@ -147,8 +152,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true; // Publicly readable for profiles and leaderboards
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'viewer' || isAdmin());
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin())) || 
-                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['followers', 'followerCount', 'following', 'followingCount']));
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.get('role', request.resource.data.role) || !(resource.data.get('role', '') in ['viewer', 'creator', 'admin']) || isAdmin())) || 
+                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'followerCount', 'following', 'followingCount']));
       allow delete: if isAdmin() || isOwner(userId);
     }
 
@@ -160,10 +165,10 @@ service cloud.firestore {
 
     match /videos/{videoId} {
       allow read: if true;
-      allow create: if canUpload() && request.resource.data.creatorId == request.auth.uid && isValidVideo(request.resource.data);
-      allow update: if isAdmin() || (canUpload() && resource.data.creatorId == request.auth.uid && request.resource.data.creatorId == resource.data.creatorId && isValidVideo(request.resource.data)) || 
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid) || 
                     (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'likedBy', 'views']));
-      allow delete: if isAdmin() || (canUpload() && resource.data.creatorId == request.auth.uid);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
     }
 
     match /videos/{videoId}/comments/{commentId} {

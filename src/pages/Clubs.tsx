@@ -224,11 +224,11 @@ const Clubs: React.FC = () => {
             <div key={post.id} className="bg-card rounded-[2.5rem] border border-border overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/20 transition-all duration-300">
               {post.imageURL && (
                 <div className="h-72 w-full bg-muted overflow-hidden">
-                  <img 
+                  <img referrerPolicy="no-referrer"   
                     src={post.imageURL || `https://picsum.photos/seed/club-${post.id}/1200/600`} 
                     alt={post.title} 
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" 
-                    referrerPolicy="no-referrer"
+                    
                   />
                 </div>
               )}

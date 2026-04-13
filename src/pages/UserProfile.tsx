@@ -347,7 +347,7 @@ const UserProfile: React.FC = () => {
 
         <div className="relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6 pt-16">
           <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-card bg-muted flex-shrink-0 shadow-xl">
-            <img src={profile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.uid}`} alt={profile.displayName} className="w-full h-full object-cover" />
+            <img referrerPolicy="no-referrer" src={profile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.uid}`} alt={profile.displayName} className="w-full h-full object-cover" />
           </div>
           <div className="flex-1 text-center md:text-left">
             <h1 className="text-4xl font-black tracking-tight flex items-center justify-center md:justify-start gap-2">
@@ -437,7 +437,7 @@ const UserProfile: React.FC = () => {
               <div key={video.id} className="relative group">
                 <Link to={`/watch/${video.id}`} className="block bg-card rounded-3xl overflow-hidden border border-border hover:border-primary/30 transition-all shadow-sm hover:shadow-xl h-full">
                   <div className="aspect-video relative overflow-hidden bg-muted">
-                    <img src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img referrerPolicy="no-referrer" src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
                       <div className="bg-white/20 p-3 rounded-full backdrop-blur-md">
                         <Play size={32} className="text-white fill-white" />

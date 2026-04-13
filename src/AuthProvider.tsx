@@ -72,7 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               awards: 0,
               joinedClubs: []
             };
-            await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+            try {
+              await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+            } catch (err) {
+              console.error("Error creating initial profile:", err);
+              // We still want to stop loading even if creation fails
+            }
             // onSnapshot will fire again after creation
           }
           setLoading(false);
