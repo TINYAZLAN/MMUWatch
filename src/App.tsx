@@ -8,7 +8,7 @@ import Home from './pages/Home';
 import Watch from './pages/Watch';
 import Apply from './pages/Apply';
 import Upload from './pages/Upload';
-import Clubs from './pages/Clubs';
+import Community from './pages/Community';
 import Profile from './pages/Profile';
 import Explore from './pages/Explore';
 import Search from './pages/Search';
@@ -65,7 +65,7 @@ const App: React.FC = () => {
                 <Route path="/watch/:videoId" element={<Watch />} />
                 <Route path="/apply" element={<Apply />} />
                 <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-                <Route path="/clubs" element={<Clubs />} />
+                <Route path="/community" element={<Community />} />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/search" element={<Search />} />

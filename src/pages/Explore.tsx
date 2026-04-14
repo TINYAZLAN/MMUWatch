@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, limit, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { VideoMetadata, UserProfile, MMUEvent } from '../types';
+import { VideoMetadata, UserProfile, MMUEvent, BuzzNews } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Trophy, Star, Users, Award, Calendar, Play, PlusCircle, X, Loader2, ShoppingBag, MapPin, DollarSign, Store } from 'lucide-react';
+import { Trophy, Star, Users, Award, Calendar, Play, PlusCircle, X, Loader2, ShoppingBag, MapPin, DollarSign, Store, Edit3, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { toast } from 'sonner';
@@ -16,9 +16,18 @@ const Explore: React.FC = () => {
   const [topCreators, setTopCreators] = useState<UserProfile[]>([]);
   const [events, setEvents] = useState<MMUEvent[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [buzzNews, setBuzzNews] = useState<BuzzNews[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isEditingBuzz, setIsEditingBuzz] = useState(false);
+  
+  const [newBuzz, setNewBuzz] = useState({
+    title: '',
+    summary: '',
+    imageURL: '',
+    link: ''
+  });
   const [newEvent, setNewEvent] = useState({
     title: '',
     organizer: '',
@@ -113,11 +122,29 @@ const Explore: React.FC = () => {
       setLoading(false);
     });
 
+    // Real-time Buzz
+    const buzzQ = query(collection(db, 'buzzNews'), orderBy('createdAt', 'desc'), limit(3));
+    const unsubscribeBuzz = onSnapshot(buzzQ, (snapshot) => {
+      const buzzData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BuzzNews));
+      if (buzzData.length === 0) {
+        setBuzzNews([
+          { id: 'b1', title: 'MMU Ranks Top 10 in Asia', summary: 'Multimedia University has officially been ranked in the top 10 for tech universities in Asia.', imageURL: 'https://picsum.photos/seed/mmu1/800/400', createdAt: new Date() },
+          { id: 'b2', title: 'New AI Lab Opens', summary: 'The new state-of-the-art AI lab is now open for all students in the Faculty of Computing.', imageURL: 'https://picsum.photos/seed/mmu2/800/400', createdAt: new Date() },
+          { id: 'b3', title: 'Campus Festival 2026', summary: 'Get ready for the biggest campus festival this coming November. Early bird tickets available now!', imageURL: 'https://picsum.photos/seed/mmu3/800/400', createdAt: new Date() },
+        ]);
+      } else {
+        setBuzzNews(buzzData);
+      }
+    }, (error) => {
+      console.error("Error fetching buzz:", error);
+    });
+
     return () => {
       unsubscribeVideos();
       unsubscribeCreators();
       unsubscribeEvents();
       unsubscribeProducts();
+      unsubscribeBuzz();
     };
   }, []);
 
@@ -190,6 +217,35 @@ const Explore: React.FC = () => {
     }
   };
 
+  const handleAddBuzz = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    try {
+      await addDoc(collection(db, 'buzzNews'), {
+        ...newBuzz,
+        createdAt: serverTimestamp()
+      });
+      toast.success("Buzz news added successfully!");
+      setIsEditingBuzz(false);
+      setNewBuzz({ title: '', summary: '', imageURL: '', link: '' });
+    } catch (error) {
+      console.error("Error adding buzz news:", error);
+      toast.error("Failed to add buzz news");
+    }
+  };
+
+  const handleDeleteBuzz = async (buzzId: string) => {
+    if (!isAdmin) return;
+    try {
+      await deleteDoc(doc(db, 'buzzNews', buzzId));
+      toast.success("Buzz news deleted");
+    } catch (error) {
+      console.error("Error deleting buzz news:", error);
+      toast.error("Failed to delete buzz news");
+    }
+  };
+
   return (
     <div className="space-y-12 pb-20">
       {/* Header */}
@@ -199,6 +255,132 @@ const Explore: React.FC = () => {
           Discover ongoing competitions, top-performing creators, and the most liked videos across all faculties.
         </p>
       </div>
+
+      {/* Buzz Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Star className="text-yellow-500" size={28} />
+            <h2 className="text-3xl font-black tracking-tight">Buzz</h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://online.mmu.edu.my/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-full font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+            >
+              <ExternalLink size={18} />
+              Online Portal
+            </a>
+            {isAdmin && (
+              <button 
+                onClick={() => setIsEditingBuzz(true)}
+                className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-full font-bold hover:bg-muted/80 transition-colors"
+              >
+                <Edit3 size={18} />
+                Change News
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isEditingBuzz && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-2xl rounded-3xl p-8 border border-border shadow-2xl relative">
+              <button 
+                onClick={() => setIsEditingBuzz(false)}
+                className="absolute top-6 right-6 text-muted-foreground hover:text-foreground"
+              >
+                <X size={24} />
+              </button>
+              <h2 className="text-2xl font-black mb-6">Add Buzz News</h2>
+              <form onSubmit={handleAddBuzz} className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Title</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={newBuzz.title}
+                    onChange={e => setNewBuzz({...newBuzz, title: e.target.value})}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary"
+                    placeholder="e.g. MMU Ranks Top 10"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Summary</label>
+                  <textarea 
+                    required
+                    rows={3}
+                    value={newBuzz.summary}
+                    onChange={e => setNewBuzz({...newBuzz, summary: e.target.value})}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary resize-none"
+                    placeholder="Brief description..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Image URL</label>
+                  <input 
+                    type="text" 
+                    value={newBuzz.imageURL}
+                    onChange={e => setNewBuzz({...newBuzz, imageURL: e.target.value})}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary"
+                    placeholder="https://..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Link (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={newBuzz.link}
+                    onChange={e => setNewBuzz({...newBuzz, link: e.target.value})}
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary"
+                    placeholder="https://..."
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="bg-primary text-white font-bold py-4 rounded-xl hover:bg-primary/90 transition-colors mt-4 shadow-xl shadow-primary/20"
+                >
+                  Publish News
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {buzzNews.map(news => (
+            <div key={news.id} className="bg-card rounded-3xl overflow-hidden border border-border shadow-sm group hover:shadow-xl transition-all duration-300 flex flex-col">
+              <div className="h-48 relative overflow-hidden">
+                <img referrerPolicy="no-referrer"   
+                  src={news.imageURL || `https://picsum.photos/seed/buzz-${news.id}/800/400`} 
+                  alt={news.title} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                {isAdmin && (
+                  <button 
+                    onClick={() => handleDeleteBuzz(news.id)}
+                    className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-all shadow-lg"
+                    title="Delete News"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="p-6 flex flex-col flex-1">
+                <h3 className="text-xl font-black tracking-tight leading-tight mb-3">{news.title}</h3>
+                <p className="text-muted-foreground text-sm flex-1">{news.summary}</p>
+                {news.link && (
+                  <a href={news.link} target="_blank" rel="noopener noreferrer" className="mt-4 text-primary font-bold text-sm hover:underline flex items-center gap-1">
+                    Read More <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Events & Competitions */}
       <section className="space-y-6">

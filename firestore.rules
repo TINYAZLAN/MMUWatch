@@ -201,6 +201,27 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /communityClubs/{clubId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaffEmail();
+    }
+
+    match /communityEvents/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaffEmail();
+    }
+
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+      allow update, delete: if isAdmin() || isStaffEmail() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+    }
+
+    match /buzzNews/{newsId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaffEmail();
+    }
+
     match /products/{productId} {
       allow read: if true;
       allow create: if (isAdmin() || isBusinessPartner()) && request.resource.data.sellerId == request.auth.uid && isValidProduct(request.resource.data);

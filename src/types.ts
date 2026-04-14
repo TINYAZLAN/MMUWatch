@@ -95,6 +95,46 @@ export interface Application {
   createdAt: string;
 }
 
+export interface CommunityClub {
+  id: string;
+  name: string;
+  description: string;
+  imageURL?: string;
+  creatorId: string;
+  createdAt: any;
+}
+
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+  imageURL?: string;
+  creatorId: string;
+  createdAt: any;
+}
+
+export interface CommunityPost {
+  id: string;
+  title: string;
+  content: string;
+  imageURL?: string;
+  creatorId: string;
+  creatorName?: string;
+  createdAt: any;
+  tags?: string[];
+}
+
+export interface BuzzNews {
+  id: string;
+  title: string;
+  summary: string;
+  imageURL?: string;
+  link?: string;
+  createdAt: any;
+}
+
 export interface ClubPost {
   id: string;
   clubName: string;

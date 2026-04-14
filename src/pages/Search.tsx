@@ -2,12 +2,14 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, query, where, limit, onSnapshot, orderBy, startAfter, QueryDocumentSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { UnifiedSearchResult, SearchResultType } from '../types';
+import { UnifiedSearchResult, SearchResultType, VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Search as SearchIcon, Filter, X, Loader2, Compass, Calendar, Users, Play, Tag, ChevronRight, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
+import { Search as SearchIcon, Filter, X, Loader2, Compass, Calendar, Users, Play, Tag, ChevronRight, LayoutGrid, List, SlidersHorizontal, Briefcase, GraduationCap, Globe } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../AuthProvider';
+import { toast } from 'sonner';
 
 const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
   if (result.type === 'video') {
@@ -16,7 +18,7 @@ const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
 
   const getLink = () => {
     if (result.type === 'event') return '/explore';
-    if (result.type === 'club') return '/clubs';
+    if (result.type === 'club') return '/community';
     return '/';
   };
 
@@ -34,7 +36,6 @@ const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
             src={result.imageURL || result.thumbnailURL || `https://picsum.photos/seed/${result.id}/800/450`} 
             alt={result.title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            
           />
           <div className="absolute top-3 left-3">
             <span className={cn(
@@ -85,22 +86,25 @@ const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
 };
 
 const Search: React.FC = () => {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryParam = searchParams.get('q') || '';
   const typeParam = (searchParams.get('type') as SearchResultType | 'all') || 'all';
   const tagsParam = searchParams.get('tags')?.split(',').filter(Boolean) || [];
   
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
+  const [industryVideos, setIndustryVideos] = useState<VideoMetadata[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadedCollections, setLoadedCollections] = useState<Set<string>>(new Set());
-  const [isFiltering, setIsFiltering] = useState(false);
+  const [searchMode, setSearchMode] = useState<'public' | 'internal'>(user ? 'internal' : 'public');
+  const [searchInput, setSearchInput] = useState(queryParam);
   
   const availableTags = useMemo(() => [
     "Fashion", "STyLE", "Event", "Merdeka", "Concert", "Mathematics", 
     "Calculus", "Lecture", "FCM", "FYP", "Showcase", "Diwali", 
     "Cultural", "Vlog", "Student Life", "FCI", "Python", 
     "Programming", "Tutorial", "Alumni", "Startup", "Success", 
-    "Campus Tour", "Study Spots", "Cyberjaya", "CNY", "Lion Dance"
+    "Campus Tour", "Study Spots", "Cyberjaya", "CNY", "Lion Dance",
+    "Industry", "Career", "Interview"
   ], []);
 
   const updateFilters = useCallback((updates: Record<string, string | string[] | null>) => {
@@ -121,25 +125,26 @@ const Search: React.FC = () => {
     setSearchParams(newParams);
   }, [searchParams, setSearchParams]);
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateFilters({ q: searchInput || null });
+  };
+
   useEffect(() => {
     setLoading(true);
-    setLoadedCollections(new Set());
     const unsubscribes: (() => void)[] = [];
 
     const collectionsToFetch = [
       { name: 'videos', type: 'video' as const },
-      { name: 'events', type: 'event' as const },
-      { name: 'clubPosts', type: 'club' as const }
+      { name: 'communityEvents', type: 'event' as const },
+      { name: 'communityClubs', type: 'club' as const }
     ].filter(c => typeParam === 'all' || c.type === typeParam);
 
     const collectionResults: Record<string, UnifiedSearchResult[]> = {};
+    let loadedCount = 0;
 
     collectionsToFetch.forEach(col => {
       let q = query(collection(db, col.name), limit(50));
-
-      if (tagsParam.length > 0) {
-        q = query(collection(db, col.name), where('tags', 'array-contains-any', tagsParam.slice(0, 10)), limit(50));
-      }
 
       const unsub = onSnapshot(q, (snapshot) => {
         const colData = snapshot.docs.map(doc => {
@@ -147,7 +152,7 @@ const Search: React.FC = () => {
           return { 
             id: doc.id, 
             type: col.type,
-            title: data.title || data.clubName || '',
+            title: data.title || data.name || data.clubName || '',
             description: data.description || data.content || '',
             createdAt: data.createdAt,
             tags: data.tags || [],
@@ -156,58 +161,63 @@ const Search: React.FC = () => {
         });
 
         collectionResults[col.name] = colData;
+        loadedCount++;
         
-        // Update loaded collections
-        setLoadedCollections(prev => {
-          const next = new Set(prev);
-          next.add(col.name);
+        if (loadedCount >= collectionsToFetch.length) {
+          // Merge and hybrid filter
+          const allResults = Object.values(collectionResults).flat();
           
-          // Check if all requested collections have loaded at least once
-          if (next.size === collectionsToFetch.length) {
-            setLoading(false);
-          }
-          return next;
-        });
+          const filtered = allResults.filter(item => {
+            const matchesTags = tagsParam.length === 0 || tagsParam.every(tag => 
+              item.tags?.some(t => t.toLowerCase() === tag.toLowerCase())
+            );
 
-        // Merge and hybrid filter
-        const allResults = Object.values(collectionResults).flat();
-        
-        const filtered = allResults.filter(item => {
-          const matchesTags = tagsParam.length === 0 || tagsParam.every(tag => 
-            item.tags?.some(t => t.toLowerCase() === tag.toLowerCase())
-          );
+            const searchStr = queryParam.toLowerCase();
+            
+            // Prioritize tags: if search string matches a tag, boost it.
+            // For now, we just filter.
+            const matchesKeyword = !queryParam || 
+              item.tags?.some(t => t.toLowerCase().includes(searchStr)) ||
+              item.title.toLowerCase().includes(searchStr) || 
+              item.description.toLowerCase().includes(searchStr) ||
+              (item.type === 'club' && item.clubName?.toLowerCase().includes(searchStr));
 
-          const searchStr = queryParam.toLowerCase();
-          const matchesKeyword = !queryParam || 
-            item.title.toLowerCase().includes(searchStr) || 
-            item.description.toLowerCase().includes(searchStr) ||
-            item.tags?.some(t => t.toLowerCase().includes(searchStr)) ||
-            (item.type === 'club' && item.clubName?.toLowerCase().includes(searchStr));
+            return matchesTags && matchesKeyword;
+          });
 
-          return matchesTags && matchesKeyword;
-        });
+          // Sort by tag match first, then date
+          const sorted = filtered.sort((a, b) => {
+            const searchStr = queryParam.toLowerCase();
+            const aHasTag = a.tags?.some(t => t.toLowerCase() === searchStr) ? 1 : 0;
+            const bHasTag = b.tags?.some(t => t.toLowerCase() === searchStr) ? 1 : 0;
+            
+            if (aHasTag !== bHasTag) {
+              return bHasTag - aHasTag; // Tag matches come first
+            }
 
-        const sorted = filtered.sort((a, b) => {
-          const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
-          const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
-          return (dateB || 0) - (dateA || 0);
-        });
+            const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
+            const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
+            return (dateB || 0) - (dateA || 0);
+          });
 
-        setResults(sorted);
+          setResults(sorted);
+          setLoading(false);
+        }
       }, (error) => {
         console.error(`Error fetching ${col.name}:`, error);
-        setLoadedCollections(prev => {
-          const next = new Set(prev);
-          next.add(col.name);
-          if (next.size === collectionsToFetch.length) {
-            setLoading(false);
-          }
-          return next;
-        });
+        loadedCount++;
+        if (loadedCount >= collectionsToFetch.length) setLoading(false);
       });
 
       unsubscribes.push(unsub);
     });
+
+    // Fetch Industry-ready videos (e.g., tagged with 'Industry')
+    const industryQ = query(collection(db, 'videos'), where('tags', 'array-contains', 'Industry'), limit(4));
+    const unsubIndustry = onSnapshot(industryQ, (snapshot) => {
+      setIndustryVideos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata)));
+    });
+    unsubscribes.push(unsubIndustry);
 
     return () => unsubscribes.forEach(unsub => unsub());
   }, [queryParam, typeParam, tagsParam.join(',')]);
@@ -223,18 +233,26 @@ const Search: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 min-h-screen">
       {/* Search Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-        <div className="space-y-2">
+        <div className="space-y-4 w-full lg:w-1/2">
           <div className="flex items-center gap-2 text-primary font-black uppercase tracking-[0.2em] text-xs">
             <SearchIcon size={14} />
             <span>Campus Search</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
-            {queryParam ? (
-              <>Results for <span className="text-primary">"{queryParam}"</span></>
-            ) : (
-              'Explore MMU'
-            )}
-          </h1>
+          
+          <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by tags, names, or keywords..."
+              className="w-full border-2 border-border rounded-2xl py-4 px-6 pl-14 focus:outline-none focus:border-primary transition-all bg-card text-foreground text-lg font-medium shadow-sm"
+            />
+            <SearchIcon className="absolute left-5 text-muted-foreground" size={24} />
+            <button type="submit" className="absolute right-3 bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary/90 transition-colors">
+              Search
+            </button>
+          </form>
+
           <div className="flex items-center gap-3 text-muted-foreground font-medium">
             <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold">
               {results.length} {results.length === 1 ? 'Result' : 'Results'} Found
@@ -245,23 +263,73 @@ const Search: React.FC = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-2xl border border-border w-fit">
-          {(['all', 'video', 'event', 'club'] as const).map((t) => (
+        <div className="flex flex-col items-end gap-4">
+          {/* Mode Toggle */}
+          <div className="flex items-center bg-muted p-1 rounded-full border border-border">
             <button
-              key={t}
-              onClick={() => updateFilters({ type: t === 'all' ? null : t })}
+              onClick={() => setSearchMode('public')}
               className={cn(
-                "px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                typeParam === t 
-                  ? "bg-card text-foreground shadow-sm border border-border" 
-                  : "text-muted-foreground hover:text-foreground"
+                "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all",
+                searchMode === 'public' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {t}s
+              <Globe size={14} /> Public
             </button>
-          ))}
+            <button
+              onClick={() => {
+                if (!user) {
+                  toast.error("Please sign in to access Student/Staff mode.");
+                  return;
+                }
+                setSearchMode('internal');
+              }}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all",
+                searchMode === 'internal' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <GraduationCap size={14} /> Student/Staff
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-2xl border border-border w-fit">
+            {(['all', 'video', 'event', 'club'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => updateFilters({ type: t === 'all' ? null : t })}
+                className={cn(
+                  "px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                  typeParam === t 
+                    ? "bg-card text-foreground shadow-sm border border-border" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t}s
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Industry Ready Videos Section (Only in internal mode) */}
+      {searchMode === 'internal' && industryVideos.length > 0 && (
+        <div className="bg-primary/5 border border-primary/20 rounded-3xl p-8 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary p-2 rounded-xl text-white">
+              <Briefcase size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black tracking-tight">Industry-Ready Content</h2>
+              <p className="text-muted-foreground text-sm">Curated by staff to prepare you for the workforce.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {industryVideos.map(video => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Sidebar Filters */}
@@ -302,66 +370,43 @@ const Search: React.FC = () => {
                 ))}
               </div>
             </div>
-
-            <div className="pt-6 border-t border-border">
-              <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10">
-                <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Pro Tip</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Combine multiple tags to narrow down your search. We use strict filtering to find exactly what you need.
-                </p>
-              </div>
-            </div>
           </div>
         </aside>
 
         {/* Results Grid */}
-        <main className="lg:col-span-9 space-y-6">
+        <main className="lg:col-span-9">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-32 gap-6 bg-card rounded-3xl border border-border border-dashed">
-              <div className="relative">
-                <Loader2 className="animate-spin text-primary" size={48} />
-                <SearchIcon className="absolute inset-0 m-auto text-primary/20" size={20} />
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-black tracking-tight">Searching the campus...</p>
-                <p className="text-sm text-muted-foreground">Scanning videos, events, and clubs</p>
-              </div>
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Loader2 className="animate-spin text-primary" size={48} />
+              <p className="text-muted-foreground font-bold">Searching campus...</p>
             </div>
           ) : results.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+            <motion.div 
+              layout
+              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6"
+            >
               <AnimatePresence mode="popLayout">
-                {results.map(result => (
+                {results.map((result) => (
                   <SearchCard key={`${result.type}-${result.id}`} result={result} />
                 ))}
               </AnimatePresence>
-            </div>
-          ) : (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center py-32 text-center bg-card rounded-3xl border border-border border-dashed space-y-6"
-            >
-              <div className="bg-muted p-8 rounded-full">
-                <Compass size={64} className="text-muted-foreground/20" />
-              </div>
-              <div className="space-y-2 max-w-md mx-auto px-6">
-                <h3 className="text-2xl font-black tracking-tight">No results found</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  We couldn't find anything matching your filters. Try removing some tags or searching for something else.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-4">
-                <button 
-                  onClick={() => updateFilters({ tags: null, type: null })}
-                  className="bg-primary text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all shadow-xl shadow-primary/20"
-                >
-                  Clear All Filters
-                </button>
-                <Link to="/" className="bg-muted text-foreground px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-muted/80 transition-all">
-                  Back to Home
-                </Link>
-              </div>
             </motion.div>
+          ) : (
+            <div className="text-center py-20 bg-card rounded-3xl border border-border border-dashed">
+              <div className="bg-muted w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <SearchIcon size={32} className="text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-black mb-2">No results found</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                We couldn't find anything matching your search. Try adjusting your filters or using different keywords.
+              </p>
+              <button 
+                onClick={() => updateFilters({ q: null, tags: null, type: null })}
+                className="mt-6 bg-primary text-white px-6 py-2 rounded-full font-bold hover:bg-primary/90 transition-colors"
+              >
+                Clear Search
+              </button>
+            </div>
           )}
         </main>
       </div>

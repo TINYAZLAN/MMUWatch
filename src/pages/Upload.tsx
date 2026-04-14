@@ -332,9 +332,21 @@ const Upload: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Duration (seconds)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={videoDuration}
+                    onChange={(e) => setVideoDuration(Number(e.target.value) || 0)}
+                    className="w-full bg-muted border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary transition-all text-foreground"
+                    placeholder="e.g., 120"
+                  />
+                </div>
               </div>
 
-              {isSubmitting && uploadProgress > 0 && (
+              {isSubmitting && (
                 <div className="space-y-2 pt-2 pb-2">
                   <div className="flex justify-between text-sm font-bold text-muted-foreground">
                     <span>Uploading Video...</span>

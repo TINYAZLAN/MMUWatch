@@ -246,38 +246,36 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <header className={cn("fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-6 z-50 border-b shadow-lg transition-colors duration-300 bg-card border-border")}>
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2 group">
-            <img referrerPolicy="no-referrer" src="MMU LOGO.svg" alt="MMU Logo" className="h-8 bg-white p-1 rounded-md group-hover:opacity-90 transition-opacity" />
+            <div className="bg-transparent rounded-full p-1">
+              <img referrerPolicy="no-referrer" src="MMU LOGO.svg" alt="MMU Logo" className="h-8 group-hover:opacity-90 transition-opacity mix-blend-multiply dark:mix-blend-screen" />
+            </div>
             <span className={cn("text-2xl font-black tracking-tighter transition-colors text-foreground group-hover:text-primary")}>MMUWatch</span>
           </Link>
 
           {/* Main Nav Links */}
           <nav className="hidden md:flex items-center gap-6 font-semibold text-sm">
             <Link to="/" className={cn("flex items-center gap-2 transition-colors text-muted-foreground hover:text-primary")}><Home size={18} /> Home</Link>
-            <Link to="/clubs" className={cn("flex items-center gap-2 transition-colors text-muted-foreground hover:text-primary")}><Users size={18} /> Clubs</Link>
+            <Link to="/community" className={cn("flex items-center gap-2 transition-colors text-muted-foreground hover:text-primary")}><Users size={18} /> Community</Link>
             <Link to="/explore" className={cn("flex items-center gap-2 transition-colors text-muted-foreground hover:text-primary")}><Compass size={18} /> Explore</Link>
           </nav>
         </div>
 
-        <div className="flex-1 max-w-xl mx-8 hidden lg:block">
-          <form onSubmit={handleSearch} className="relative flex items-center">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search videos, clubs, or assignments..."
-              className={cn("w-full border rounded-full py-2 px-4 pl-10 focus:outline-none focus:border-primary transition-all bg-muted border-border text-foreground")}
-            />
-            <Search className={cn("absolute left-3 text-muted-foreground")} size={18} />
-          </form>
+        <div className="flex-1 max-w-xl mx-8 hidden lg:flex justify-center">
+          <Link to="/search" className="relative flex items-center w-full max-w-md group">
+            <div className={cn("w-full border rounded-full py-2 px-4 pl-10 flex items-center text-muted-foreground transition-all bg-muted border-border group-hover:border-primary group-hover:bg-background")}>
+              <span className="truncate">Search videos, tags, clubs...</span>
+            </div>
+            <Search className={cn("absolute left-3 text-muted-foreground group-hover:text-primary transition-colors")} size={18} />
+          </Link>
         </div>
 
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+          <Link 
+            to="/search"
             className={cn("lg:hidden p-2 rounded-full transition-colors hover:bg-muted text-muted-foreground")}
           >
             <Search size={20} />
-          </button>
+          </Link>
 
           {!user && (
             <a href="https://www.mmu.edu.my" target="_blank" rel="noopener noreferrer" className={cn("hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full font-bold transition-colors bg-primary text-white hover:bg-primary/90")}>
