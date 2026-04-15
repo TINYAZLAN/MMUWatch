@@ -26,7 +26,7 @@ const Upload: React.FC = () => {
     title: '',
     description: '',
     category: '',
-    tags: ''
+    tags: new URLSearchParams(window.location.search).get('tags') || ''
   });
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB

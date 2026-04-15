@@ -4,7 +4,7 @@ import { collection, query, where, limit, onSnapshot, orderBy, startAfter, Query
 import { db } from '../firebase';
 import { UnifiedSearchResult, SearchResultType, VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Search as SearchIcon, Filter, X, Loader2, Compass, Calendar, Users, Play, Tag, ChevronRight, LayoutGrid, List, SlidersHorizontal, Briefcase, GraduationCap, Globe } from 'lucide-react';
+import { Search as SearchIcon, Filter, X, Loader2, Compass, Calendar, Users, Play, Tag, ChevronRight, LayoutGrid, List, SlidersHorizontal, Briefcase, GraduationCap, Globe, BookOpen, Cpu, MonitorPlay, Building2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
@@ -85,6 +85,26 @@ const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
   );
 };
 
+// Mock data for public view
+const mockPublicVideos = {
+  FCI: [
+    { id: 'mock1', title: 'Introduction to Python', description: 'Learn the basics of Python programming.', creatorName: 'Dr. Ahmad', views: 1200, likes: 150, dislikes: 2, category: 'FCI', tags: ['Python', 'Programming'], thumbnailURL: 'https://picsum.photos/seed/fci1/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() },
+    { id: 'mock2', title: 'Data Structures 101', description: 'Essential data structures for computer science.', creatorName: 'Prof. Lee', views: 850, likes: 90, dislikes: 1, category: 'FCI', tags: ['Data Structures', 'CS'], thumbnailURL: 'https://picsum.photos/seed/fci2/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() }
+  ],
+  FCM: [
+    { id: 'mock3', title: 'Digital Art Showcase', description: 'A showcase of student digital art projects.', creatorName: 'Sarah Lim', views: 2300, likes: 300, dislikes: 5, category: 'FCM', tags: ['Art', 'Showcase'], thumbnailURL: 'https://picsum.photos/seed/fcm1/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() },
+    { id: 'mock4', title: 'Animation Basics', description: 'Getting started with 2D animation.', creatorName: 'John Doe', views: 1500, likes: 200, dislikes: 3, category: 'FCM', tags: ['Animation', 'Design'], thumbnailURL: 'https://picsum.photos/seed/fcm2/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() }
+  ],
+  FOM: [
+    { id: 'mock5', title: 'Business Management', description: 'Core concepts of business management.', creatorName: 'Dr. Tan', views: 900, likes: 80, dislikes: 0, category: 'FOM', tags: ['Business', 'Management'], thumbnailURL: 'https://picsum.photos/seed/fom1/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() },
+    { id: 'mock6', title: 'Marketing Strategies', description: 'Modern marketing strategies for startups.', creatorName: 'Alice Wong', views: 1100, likes: 120, dislikes: 1, category: 'FOM', tags: ['Marketing', 'Startup'], thumbnailURL: 'https://picsum.photos/seed/fom2/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() }
+  ],
+  FOE: [
+    { id: 'mock7', title: 'Circuit Design', description: 'Fundamentals of electronic circuit design.', creatorName: 'Ir. Kumar', views: 750, likes: 60, dislikes: 0, category: 'FOE', tags: ['Engineering', 'Circuits'], thumbnailURL: 'https://picsum.photos/seed/foe1/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() },
+    { id: 'mock8', title: 'Robotics Workshop', description: 'Hands-on robotics workshop highlights.', creatorName: 'Tech Club', views: 1800, likes: 250, dislikes: 4, category: 'FOE', tags: ['Robotics', 'Workshop'], thumbnailURL: 'https://picsum.photos/seed/foe2/800/450', videoURL: '#', creatorId: 'mock', createdAt: new Date() }
+  ]
+};
+
 const Search: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -95,8 +115,9 @@ const Search: React.FC = () => {
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
   const [industryVideos, setIndustryVideos] = useState<VideoMetadata[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchMode, setSearchMode] = useState<'public' | 'internal'>(user ? 'internal' : 'public');
   const [searchInput, setSearchInput] = useState(queryParam);
+  
+  const isInternal = !!user;
   
   const availableTags = useMemo(() => [
     "Fashion", "STyLE", "Event", "Merdeka", "Concert", "Mathematics", 
@@ -131,6 +152,11 @@ const Search: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isInternal) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
 
@@ -156,6 +182,7 @@ const Search: React.FC = () => {
             description: data.description || data.content || '',
             createdAt: data.createdAt,
             tags: data.tags || [],
+            creatorName: data.creatorName || data.sellerName || '',
             ...data
           } as UnifiedSearchResult;
         });
@@ -175,11 +202,11 @@ const Search: React.FC = () => {
             const searchStr = queryParam.toLowerCase();
             
             // Prioritize tags: if search string matches a tag, boost it.
-            // For now, we just filter.
             const matchesKeyword = !queryParam || 
               item.tags?.some(t => t.toLowerCase().includes(searchStr)) ||
               item.title.toLowerCase().includes(searchStr) || 
               item.description.toLowerCase().includes(searchStr) ||
+              item.creatorName?.toLowerCase().includes(searchStr) ||
               (item.type === 'club' && item.clubName?.toLowerCase().includes(searchStr));
 
             return matchesTags && matchesKeyword;
@@ -220,7 +247,7 @@ const Search: React.FC = () => {
     unsubscribes.push(unsubIndustry);
 
     return () => unsubscribes.forEach(unsub => unsub());
-  }, [queryParam, typeParam, tagsParam.join(',')]);
+  }, [queryParam, typeParam, tagsParam.join(','), isInternal]);
 
   const toggleTag = (tag: string) => {
     const newTags = tagsParam.includes(tag) 
@@ -228,6 +255,146 @@ const Search: React.FC = () => {
       : [...tagsParam, tag];
     updateFilters({ tags: newTags });
   };
+
+  const filteredPublicVideos = useMemo(() => {
+    if (!queryParam.trim()) return mockPublicVideos;
+    const query = queryParam.toLowerCase();
+    return {
+      FCI: mockPublicVideos.FCI.filter(v => v.creatorName.toLowerCase().includes(query)),
+      FCM: mockPublicVideos.FCM.filter(v => v.creatorName.toLowerCase().includes(query)),
+      FOM: mockPublicVideos.FOM.filter(v => v.creatorName.toLowerCase().includes(query)),
+      FOE: mockPublicVideos.FOE.filter(v => v.creatorName.toLowerCase().includes(query)),
+    };
+  }, [queryParam]);
+
+  if (!isInternal) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12 space-y-16 min-h-screen">
+        <div className="text-center space-y-4 max-w-2xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
+            Discover <span className="text-primary">MMU</span>
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Explore content from different faculties. Sign in to access the full search experience, industry-ready videos, and campus events.
+          </p>
+          
+          <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full mt-8">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search creators by name..."
+              className="w-full border-2 border-border rounded-2xl py-4 px-6 pl-14 focus:outline-none focus:border-primary transition-all bg-card text-foreground text-lg font-medium shadow-sm"
+            />
+            <SearchIcon className="absolute left-5 text-muted-foreground" size={24} />
+            <button type="submit" className="absolute right-3 bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary/90 transition-colors">
+              Search
+            </button>
+          </form>
+        </div>
+
+        <div className="space-y-16">
+          {/* FCI Section */}
+          {filteredPublicVideos.FCI.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-500/10 p-3 rounded-2xl">
+                  <Cpu size={28} className="text-blue-500" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Faculty of Computing and Informatics (FCI)</h2>
+                  <p className="text-muted-foreground">Tech, programming, and computer science.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredPublicVideos.FCI.map(video => (
+                  <VideoCard key={video.id} video={video as any} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* FCM Section */}
+          {filteredPublicVideos.FCM.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-500/10 p-3 rounded-2xl">
+                  <MonitorPlay size={28} className="text-purple-500" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Faculty of Creative Multimedia (FCM)</h2>
+                  <p className="text-muted-foreground">Art, design, animation, and media.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredPublicVideos.FCM.map(video => (
+                  <VideoCard key={video.id} video={video as any} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* FOM Section */}
+          {filteredPublicVideos.FOM.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-500/10 p-3 rounded-2xl">
+                  <Building2 size={28} className="text-green-500" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Faculty of Management (FOM)</h2>
+                  <p className="text-muted-foreground">Business, finance, and marketing.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredPublicVideos.FOM.map(video => (
+                  <VideoCard key={video.id} video={video as any} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* FOE Section */}
+          {filteredPublicVideos.FOE.length > 0 && (
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-500/10 p-3 rounded-2xl">
+                  <BookOpen size={28} className="text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Faculty of Engineering (FOE)</h2>
+                  <p className="text-muted-foreground">Electronics, robotics, and telecommunications.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredPublicVideos.FOE.map(video => (
+                  <VideoCard key={video.id} video={video as any} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {filteredPublicVideos.FCI.length === 0 && filteredPublicVideos.FCM.length === 0 && filteredPublicVideos.FOM.length === 0 && filteredPublicVideos.FOE.length === 0 && (
+            <div className="text-center py-20 bg-card rounded-3xl border border-border border-dashed">
+              <div className="bg-muted w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <SearchIcon size={32} className="text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-black mb-2">No creators found</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                We couldn't find any creators matching "{queryParam}".
+              </p>
+              <button 
+                onClick={() => updateFilters({ q: null })}
+                className="mt-6 bg-primary text-white px-6 py-2 rounded-full font-bold hover:bg-primary/90 transition-colors"
+              >
+                Clear Search
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 min-h-screen">
@@ -264,34 +431,6 @@ const Search: React.FC = () => {
         </div>
         
         <div className="flex flex-col items-end gap-4">
-          {/* Mode Toggle */}
-          <div className="flex items-center bg-muted p-1 rounded-full border border-border">
-            <button
-              onClick={() => setSearchMode('public')}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all",
-                searchMode === 'public' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Globe size={14} /> Public
-            </button>
-            <button
-              onClick={() => {
-                if (!user) {
-                  toast.error("Please sign in to access Student/Staff mode.");
-                  return;
-                }
-                setSearchMode('internal');
-              }}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all",
-                searchMode === 'internal' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <GraduationCap size={14} /> Student/Staff
-            </button>
-          </div>
-
           <div className="flex items-center gap-2 bg-muted/50 p-1 rounded-2xl border border-border w-fit">
             {(['all', 'video', 'event', 'club'] as const).map((t) => (
               <button
@@ -311,8 +450,8 @@ const Search: React.FC = () => {
         </div>
       </div>
 
-      {/* Industry Ready Videos Section (Only in internal mode) */}
-      {searchMode === 'internal' && industryVideos.length > 0 && (
+      {/* Industry Ready Videos Section */}
+      {industryVideos.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 rounded-3xl p-8 space-y-6">
           <div className="flex items-center gap-3">
             <div className="bg-primary p-2 rounded-xl text-white">

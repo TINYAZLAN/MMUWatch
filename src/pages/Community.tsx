@@ -28,6 +28,7 @@ const Community: React.FC = () => {
 
   const isStaff = !profile?.studentId && (profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com' || user?.email?.endsWith('@mmu.edu.my'));
   const isStudent = !!profile?.studentId;
+  const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
 
   useEffect(() => {
     setLoading(true);
@@ -57,7 +58,7 @@ const Community: React.FC = () => {
     if (!user) return;
 
     try {
-      if (activeTab === 'clubs' && isStaff) {
+      if (activeTab === 'clubs' && isAdmin) {
         if (!newClub.name || !newClub.description) return;
         await addDoc(collection(db, 'communityClubs'), {
           name: newClub.name,
@@ -67,7 +68,7 @@ const Community: React.FC = () => {
         });
         setNewClub({ name: '', description: '' });
         toast.success("Club created!");
-      } else if (activeTab === 'events' && isStaff) {
+      } else if (activeTab === 'events' && isAdmin) {
         if (!newEvent.title || !newEvent.description || !newEvent.date || !newEvent.location) return;
         await addDoc(collection(db, 'communityEvents'), {
           title: newEvent.title,
@@ -101,7 +102,12 @@ const Community: React.FC = () => {
   };
 
   const handleDelete = async (collectionName: string, id: string) => {
-    if (!isStaff) return;
+    if (collectionName === 'communityClubs' || collectionName === 'communityEvents') {
+      if (!isAdmin) return;
+    } else {
+      if (!isStaff) return;
+    }
+    
     try {
       await deleteDoc(doc(db, collectionName, id));
       toast.success("Deleted successfully");
@@ -128,7 +134,7 @@ const Community: React.FC = () => {
     }
   };
 
-  const canCreate = (activeTab === 'clubs' || activeTab === 'events') ? isStaff : (isStaff || isStudent);
+  const canCreate = (activeTab === 'clubs' || activeTab === 'events') ? isAdmin : (isStaff || isStudent);
 
   return (
     <div className="max-w-5xl mx-auto py-8 space-y-8 pb-20">
