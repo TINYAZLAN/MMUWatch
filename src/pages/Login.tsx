@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { auth } from '../firebase';
 import { toast } from 'sonner';
 import { LogIn, UserPlus, GraduationCap } from 'lucide-react';
+import { MMUText } from '../components/MMUText';
 
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -63,14 +64,14 @@ const Login: React.FC = () => {
             {isLogin ? 'Welcome Back' : 'Create Account'}
           </h1>
           <p className="text-white/60 mt-2">
-            {isLogin ? 'Sign in to continue to MMUWatch' : 'Join the MMUWatch community'}
+            {isLogin ? <><MMUText text="Sign in to continue to MMUWatch" /></> : <><MMUText text="Join the MMUWatch community" /></>}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-widest text-white/50">
-              MMU Email
+              <MMUText text="MMU Email" />
             </label>
             <input
               type="email"

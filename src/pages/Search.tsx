@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../AuthProvider';
 import { toast } from 'sonner';
+import { MMUText } from '../components/MMUText';
 
 const SearchCard: React.FC<{ result: UnifiedSearchResult }> = ({ result }) => {
   if (result.type === 'video') {
@@ -272,7 +273,7 @@ const Search: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-12 space-y-16 min-h-screen">
         <div className="text-center space-y-4 max-w-2xl mx-auto">
           <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
-            Discover <span className="text-primary">MMU</span>
+            <MMUText text="Discover MMU" />
           </h1>
           <p className="text-lg text-muted-foreground">
             Explore content from different faculties. Sign in to access the full search experience, industry-ready videos, and campus events.

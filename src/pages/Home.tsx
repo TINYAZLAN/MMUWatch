@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
+import { MMUText } from '../components/MMUText';
 
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
@@ -95,10 +96,10 @@ const Home: React.FC = () => {
           >
             <div className="flex items-center gap-2 text-primary font-bold uppercase tracking-widest text-xs">
               <TrendingUp size={16} />
-              Featured at MMU
+              <MMUText text="Featured at MMU" />
             </div>
             <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-none text-white">
-              SHAPE THE FUTURE AT <span className="text-primary">MMU</span>
+              <MMUText text="SHAPE THE FUTURE AT MMU" />
             </h1>
             <p className="text-lg text-white/80 line-clamp-2 max-w-xl">
               Experience the digital revolution. Watch how our students are building the next generation of technology and creative media.
@@ -194,7 +195,7 @@ const Home: React.FC = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
             <PlaySquare className="text-primary" />
-            Trending at MMU
+            <MMUText text="Trending at MMU" />
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

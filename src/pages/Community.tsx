@@ -7,6 +7,7 @@ import { Users, Calendar, Megaphone, PlusCircle, Image as ImageIcon, Send, Tag, 
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { MMUText } from '../components/MMUText';
 
 type TabType = 'clubs' | 'events' | 'posts';
 
@@ -145,7 +146,7 @@ const Community: React.FC = () => {
           </div>
           <div>
             <h1 className="text-4xl font-black tracking-tighter">Community</h1>
-            <p className="text-muted-foreground font-medium">Connect, share, and discover at MMU.</p>
+            <p className="text-muted-foreground font-medium"><MMUText text="Connect, share, and discover at MMU." /></p>
           </div>
         </div>
         

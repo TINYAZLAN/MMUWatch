@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import Footer from './Footer';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../ThemeContext';
+import { MMUText } from './MMUText';
 
 const ChatPopup = () => {
   const { user, profile } = useAuth();
@@ -247,9 +248,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="bg-transparent rounded-full p-1">
-              <img referrerPolicy="no-referrer" src="MMU LOGO.svg" alt="MMU Logo" className="h-8 group-hover:opacity-90 transition-opacity mix-blend-multiply dark:mix-blend-screen" />
+              <img referrerPolicy="no-referrer" src="/mmu-logo.svg" alt="MMU Logo" className="h-8 group-hover:opacity-90 transition-opacity" />
             </div>
-            <span className={cn("text-2xl font-black tracking-tighter transition-colors text-foreground group-hover:text-primary")}>MMUWatch</span>
+            <span className={cn("text-2xl font-black tracking-tighter transition-colors text-foreground group-hover:text-primary")}>
+              <MMUText text="MMUWatch" />
+            </span>
           </Link>
 
           {/* Main Nav Links */}

@@ -1,12 +1,13 @@
 import React from 'react';
 import { Eye, Brain, Network, Image, Monitor, Palette, ShieldCheck, Heart } from 'lucide-react';
+import { MMUText } from '../components/MMUText';
 
 const Credits: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto py-16 px-6 space-y-12">
       <div className="text-center space-y-4">
         <h1 className="text-5xl font-black tracking-tighter text-white">Project <span className="text-[#E31837]">Credits</span></h1>
-        <p className="text-white/60 text-xl font-medium">MMUWatch: Mini IT Project Group 14 Demo</p>
+        <p className="text-white/60 text-xl font-medium"><MMUText text="MMUWatch: Mini IT Project Group 14 Demo" /></p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -94,7 +95,7 @@ const Credits: React.FC = () => {
 
       <div className="bg-[#E31837] p-12 rounded-[3rem] text-center space-y-6 shadow-2xl shadow-red-500/20">
         <Heart size={48} className="text-white mx-auto fill-white animate-pulse" />
-        <h2 className="text-4xl font-black text-white tracking-tighter">Thank You for Supporting MMUWatch!</h2>
+        <h2 className="text-4xl font-black text-white tracking-tighter"><MMUText text="Thank You for Supporting MMUWatch!" /></h2>
         <p className="text-white/80 text-lg max-w-2xl mx-auto font-medium">
           This project was developed as part of the Mini IT Project course at Multimedia University. 
           We appreciate all the feedback and support from our faculty and peers.

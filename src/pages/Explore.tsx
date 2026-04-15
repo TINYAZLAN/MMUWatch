@@ -126,7 +126,7 @@ const Explore: React.FC = () => {
     });
 
     // Real-time Buzz
-    const buzzQ = query(collection(db, 'buzzNews'), orderBy('createdAt', 'desc'), limit(3));
+    const buzzQ = query(collection(db, 'buzzNews'), orderBy('createdAt', 'desc'), limit(5));
     const unsubscribeBuzz = onSnapshot(buzzQ, (snapshot) => {
       const buzzData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BuzzNews));
       if (buzzData.length === 0) {
@@ -134,6 +134,8 @@ const Explore: React.FC = () => {
           { id: 'b1', title: 'MMU Ranks Top 10 in Asia', summary: 'Multimedia University has officially been ranked in the top 10 for tech universities in Asia.', imageURL: 'https://picsum.photos/seed/mmu1/800/400', createdAt: new Date() },
           { id: 'b2', title: 'New AI Lab Opens', summary: 'The new state-of-the-art AI lab is now open for all students in the Faculty of Computing.', imageURL: 'https://picsum.photos/seed/mmu2/800/400', createdAt: new Date() },
           { id: 'b3', title: 'Campus Festival 2026', summary: 'Get ready for the biggest campus festival this coming November. Early bird tickets available now!', imageURL: 'https://picsum.photos/seed/mmu3/800/400', createdAt: new Date() },
+          { id: 'b4', title: 'Esports Team Wins Nationals', summary: 'MMU Esports team clinches the national championship title in an intense grand final match.', imageURL: 'https://picsum.photos/seed/mmu4/800/400', createdAt: new Date() },
+          { id: 'b5', title: 'Tech Startup Incubator Launch', summary: 'A new incubator program launches to help students turn their final year projects into real startups.', imageURL: 'https://picsum.photos/seed/mmu5/800/400', createdAt: new Date() },
         ]);
       } else {
         setBuzzNews(buzzData);
@@ -261,7 +263,7 @@ const Explore: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         {/* LEFT COLUMN (70%) */}
         <div className="lg:col-span-8 space-y-12">
           
@@ -290,8 +292,8 @@ const Explore: React.FC = () => {
                     <span className="bg-primary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Featured</span>
                     <span className="text-sm font-medium text-white/80">{events[0].date}</span>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-black mb-2"><MMUText text={events[0].title} /></h3>
-                  <p className="text-white/80 line-clamp-2 max-w-2xl"><MMUText text={events[0].description} /></p>
+                  <h3 className="text-2xl md:text-3xl font-black mb-2">{events[0].title}</h3>
+                  <p className="text-white/80 line-clamp-2 max-w-2xl">{events[0].description}</p>
                 </div>
                 {isAdmin && (
                   <button 
@@ -313,8 +315,8 @@ const Explore: React.FC = () => {
                       <img src={event.imageURL || `https://picsum.photos/seed/${event.id}/400/200`} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     </div>
                     <div className="p-4 space-y-2">
-                      <h4 className="font-bold line-clamp-2 group-hover:text-primary transition-colors"><MMUText text={event.title} /></h4>
-                      <p className="text-xs text-muted-foreground line-clamp-2"><MMUText text={event.description} /></p>
+                      <h4 className="font-bold line-clamp-2 group-hover:text-primary transition-colors">{event.title}</h4>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{event.description}</p>
                     </div>
                     {isAdmin && (
                       <button 
@@ -348,8 +350,8 @@ const Explore: React.FC = () => {
                    <div className="w-14 h-14 bg-yellow-500/10 rounded-full flex items-center justify-center mb-4">
                      <Award className="text-yellow-500" size={28} />
                    </div>
-                   <h4 className="font-black text-lg"><MMUText text={winner.name} /></h4>
-                   <p className="text-sm text-muted-foreground mt-1"><MMUText text={winner.award} /></p>
+                   <h4 className="font-black text-lg">{winner.name}</h4>
+                   <p className="text-sm text-muted-foreground mt-1">{winner.award}</p>
                  </div>
                ))}
             </div>
@@ -380,7 +382,7 @@ const Explore: React.FC = () => {
                      </div>
                    </div>
                    <div className="p-5 space-y-3">
-                     <h4 className="font-bold line-clamp-2 leading-tight"><MMUText text={product.name} /></h4>
+                     <h4 className="font-bold line-clamp-2 leading-tight">{product.name}</h4>
                      <div className="flex items-center justify-between pt-2">
                        <span className="text-xl font-black text-primary">RM {product.price}</span>
                        <button className="text-xs bg-muted px-4 py-2 rounded-full font-bold hover:bg-primary hover:text-white transition-colors">View</button>
@@ -399,13 +401,39 @@ const Explore: React.FC = () => {
             </div>
           </section>
 
+          {/* Most Liked Videos */}
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                <Play className="text-primary" /> Most Liked Videos
+              </h2>
+              <div className="flex gap-2 bg-muted p-1 rounded-full border border-border w-fit">
+                {['7 Days', '1 Month', 'All Time'].map(filter => (
+                  <button 
+                    key={filter} 
+                    onClick={() => setVideoFilter(filter as any)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${videoFilter === filter ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {topVideos.map(video => (
+                <div key={video.id} className="w-full">
+                  <VideoCard video={video} />
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
 
         {/* RIGHT COLUMN (30%) */}
         <div className="lg:col-span-4 space-y-8">
           
           {/* Hive Buzz */}
-          <section className="bg-card rounded-3xl border border-border p-6 shadow-sm flex flex-col h-[500px]">
+          <section className="bg-card rounded-3xl border border-border p-6 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-6 shrink-0">
               <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
                 <Star className="text-yellow-500" /> Hive Buzz
@@ -420,13 +448,13 @@ const Explore: React.FC = () => {
               )}
             </div>
             
-            <div className="space-y-4 overflow-y-auto pr-2 flex-1 custom-scrollbar">
+            <div className="space-y-6 overflow-y-auto pr-2 flex-1 custom-scrollbar">
               {buzzNews.slice(0, 5).map(news => (
-                <div key={news.id} className="flex gap-4 group cursor-pointer relative bg-muted/30 p-3 rounded-2xl hover:bg-muted/80 transition-colors">
-                  <img src={news.imageURL || `https://picsum.photos/seed/${news.id}/100/100`} alt={news.title} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                <div key={news.id} className="flex gap-6 group cursor-pointer relative bg-muted/30 p-5 rounded-2xl hover:bg-muted/80 transition-colors">
+                  <img src={news.imageURL || `https://picsum.photos/seed/${news.id}/100/100`} alt={news.title} className="w-24 h-24 rounded-xl object-cover shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-sm group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-1"><MMUText text={news.title} /></h4>
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed"><MMUText text={news.summary} /></p>
+                    <h4 className="font-bold text-lg group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-2">{news.title}</h4>
+                    <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{news.summary}</p>
                   </div>
                   {isAdmin && (
                     <button 
@@ -451,72 +479,37 @@ const Explore: React.FC = () => {
             </a>
           </section>
 
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT COLUMN (70%) */}
-        <div className="lg:col-span-8 space-y-12">
-          {/* Most Liked Videos */}
-          <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                <Play className="text-primary" /> Most Liked Videos
-              </h2>
-              <div className="flex gap-2 bg-muted p-1 rounded-full border border-border w-fit">
-                {['7 Days', '1 Month', 'All Time'].map(filter => (
-                  <button 
-                    key={filter} 
-                    onClick={() => setVideoFilter(filter as any)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${videoFilter === filter ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex overflow-x-auto gap-6 pb-4 snap-x hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-              {topVideos.map(video => (
-                <div key={video.id} className="min-w-[280px] md:min-w-[320px] snap-start">
-                  <VideoCard video={video} />
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* RIGHT COLUMN (30%) */}
-        <div className="lg:col-span-4 space-y-8">
           {/* Top Creators */}
           <section className="bg-card rounded-3xl border border-border p-6 shadow-sm">
             <h2 className="text-xl font-black tracking-tight flex items-center gap-2 mb-6">
               <Users className="text-blue-500" /> Top Creators
             </h2>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {topCreators.map((creator, index) => (
                 <div 
                   key={creator.uid} 
-                  className={`flex items-center gap-4 p-3 rounded-2xl transition-all ${
+                  className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${
                     index === 0 ? 'bg-yellow-500/10 border border-yellow-500/20 shadow-sm' : 
                     index < 3 ? 'bg-muted/50' : 'hover:bg-muted'
                   }`}
                 >
-                  <div className={`font-black text-lg w-8 text-center ${
-                    index === 0 ? 'text-yellow-500 text-2xl' : 
+                  <div className={`font-black text-xl w-8 text-center ${
+                    index === 0 ? 'text-yellow-500 text-3xl' : 
                     index === 1 ? 'text-slate-400' : 
                     index === 2 ? 'text-amber-700' : 'text-muted-foreground'
                   }`}>
                     {index === 0 ? '👑' : `#${index + 1}`}
                   </div>
-                  <img src={creator.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.uid}`} alt={creator.username} className="w-12 h-12 rounded-full border-2 border-background shadow-sm object-cover" />
+                  <img src={creator.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.uid}`} alt={creator.username} className="w-14 h-14 rounded-full border-2 border-background shadow-sm object-cover" />
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold truncate text-sm"><MMUText text={creator.username || creator.displayName || 'Anonymous'} /></h4>
-                    <p className="text-xs text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
+                    <h4 className="font-bold truncate text-base">{creator.username || creator.displayName || 'Anonymous'}</h4>
+                    <p className="text-sm text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
                   </div>
                 </div>
               ))}
             </div>
           </section>
+
         </div>
       </div>
 
