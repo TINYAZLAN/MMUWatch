@@ -37,7 +37,17 @@ const Home: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as VideoMetadata));
       
-      setVideos(videoData);
+      if (videoData.length === 0) {
+        setVideos([
+          { id: 'v1', title: 'Campus Tour 2026', description: 'Explore the new facilities!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', creatorId: 'user1', creatorName: 'John Doe', likes: 1200, comments: 45, views: 5000, category: 'Campus Life', createdAt: new Date().toISOString(), tags: ['campus', 'tour'] },
+          { id: 'v2', title: 'FCI Final Year Project Showcase', description: 'Amazing projects by our seniors.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', creatorId: 'user2', creatorName: 'Jane Smith', likes: 950, comments: 30, views: 3200, category: 'Projects', createdAt: new Date().toISOString(), tags: ['fyp', 'fci'] },
+          { id: 'v3', title: 'Freshies Night Highlights', description: 'What a night to remember!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', creatorId: 'user3', creatorName: 'MMU SRC', likes: 840, comments: 55, views: 4100, category: 'Events', createdAt: new Date().toISOString(), tags: ['freshies', 'party'] },
+          { id: 'v4', title: 'Library Study Hacks', description: 'How to survive finals week.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', creatorId: 'user4', creatorName: 'Study Guru', likes: 720, comments: 20, views: 2800, category: 'Tutorials', createdAt: new Date().toISOString(), tags: ['study', 'library'] }
+        ]);
+      } else {
+        setVideos(videoData);
+      }
+      
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
       setHasMore(snapshot.docs.length === 8);
       setLoading(false);

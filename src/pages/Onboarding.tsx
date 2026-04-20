@@ -63,8 +63,8 @@ const Onboarding: React.FC = () => {
       return;
     }
 
-    if (isStaff && !/^MM\d{5}$/.test(formData.studentId)) {
-      toast.error('Staff ID must be in format MMXXXXX (e.g. MM12345)');
+    if (isStaff && !/^MMU[a-zA-Z0-9]{6}$/.test(formData.studentId)) {
+      toast.error('MMU ID must be in format MMUXXXXXX (e.g. MMU123ABC)');
       return;
     }
 
@@ -184,9 +184,13 @@ const Onboarding: React.FC = () => {
             value={formData.studentId} 
             onChange={handleChange}
             className="w-full bg-muted border border-border rounded-lg p-3 text-foreground focus:outline-none focus:border-primary"
-            placeholder={isStaff ? "e.g. STAFF123" : "e.g. 1211100000"}
+            placeholder={isStaff ? "e.g. MMU123ABC" : "e.g. 1211100000"}
           />
-          {!isStaff && <p className="text-[10px] text-muted-foreground mt-1">Must be exactly 10 digits.</p>}
+          {isStaff ? (
+            <p className="text-[10px] text-muted-foreground mt-1">Must be MMU followed by 6 alphanumeric characters.</p>
+          ) : (
+            <p className="text-[10px] text-muted-foreground mt-1">Must be exactly 10 digits.</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-bold mb-1">Full Name</label>

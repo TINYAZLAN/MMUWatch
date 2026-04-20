@@ -21,14 +21,9 @@ const Explore: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
-  const [isEditingBuzz, setIsEditingBuzz] = useState(false);
+  const [selectedBuzz, setSelectedBuzz] = useState<BuzzNews | null>(null);
+  const [editingBuzz, setEditingBuzz] = useState<BuzzNews | null>(null);
   
-  const [newBuzz, setNewBuzz] = useState({
-    title: '',
-    summary: '',
-    imageURL: '',
-    link: ''
-  });
   const [newEvent, setNewEvent] = useState({
     title: '',
     organizer: '',
@@ -58,7 +53,16 @@ const Explore: React.FC = () => {
     const videosQ = query(collection(db, 'videos'), orderBy('likes', 'desc'), limit(4));
     const unsubscribeVideos = onSnapshot(videosQ, (snapshot) => {
       const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata));
-      setTopVideos(videoData);
+      if (videoData.length === 0) {
+        setTopVideos([
+          { id: 'v1', title: 'Campus Tour 2026', description: 'Explore the new facilities!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', creatorId: 'user1', creatorName: 'John Doe', likes: 1200, comments: 45, views: 5000, category: 'Campus Life', createdAt: new Date().toISOString(), tags: ['campus', 'tour'] },
+          { id: 'v2', title: 'FCI Final Year Project Showcase', description: 'Amazing projects by our seniors.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', creatorId: 'user2', creatorName: 'Jane Smith', likes: 950, comments: 30, views: 3200, category: 'Projects', createdAt: new Date().toISOString(), tags: ['fyp', 'fci'] },
+          { id: 'v3', title: 'Freshies Night Highlights', description: 'What a night to remember!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', creatorId: 'user3', creatorName: 'MMU SRC', likes: 840, comments: 55, views: 4100, category: 'Events', createdAt: new Date().toISOString(), tags: ['freshies', 'party'] },
+          { id: 'v4', title: 'Library Study Hacks', description: 'How to survive finals week.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', creatorId: 'user4', creatorName: 'Study Guru', likes: 720, comments: 20, views: 2800, category: 'Tutorials', createdAt: new Date().toISOString(), tags: ['study', 'library'] }
+        ]);
+      } else {
+        setTopVideos(videoData);
+      }
     }, (error) => {
       console.error("Error fetching top videos:", error);
     });
@@ -67,7 +71,17 @@ const Explore: React.FC = () => {
     const creatorsQ = query(collection(db, 'users'), orderBy('followerCount', 'desc'), limit(5));
     const unsubscribeCreators = onSnapshot(creatorsQ, (snapshot) => {
       const creatorsData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      setTopCreators(creatorsData);
+      if (creatorsData.length === 0) {
+        setTopCreators([
+          { uid: 'u1', username: 'MMU Official', displayName: 'MMU Official', followerCount: 15400, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mmu', email: '', role: 'admin', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
+          { uid: 'u2', username: 'Tech Ninja', displayName: 'Tech Ninja', followerCount: 8200, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ninja', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
+          { uid: 'u3', username: 'Campus Vlogger', displayName: 'Campus Vlogger', followerCount: 5100, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=vlog', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
+          { uid: 'u4', username: 'Study Guru', displayName: 'Study Guru', followerCount: 3400, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=guru', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
+          { uid: 'u5', username: 'FCI Updates', displayName: 'FCI Updates', followerCount: 2900, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fci', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 }
+        ]);
+      } else {
+        setTopCreators(creatorsData);
+      }
     }, (error) => {
       console.error("Error fetching top creators:", error);
     });
@@ -222,21 +236,22 @@ const Explore: React.FC = () => {
     }
   };
 
-  const handleAddBuzz = async (e: React.FormEvent) => {
+  const handleUpdateBuzz = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin || !editingBuzz) return;
 
     try {
-      await addDoc(collection(db, 'buzzNews'), {
-        ...newBuzz,
-        createdAt: serverTimestamp()
-      });
-      toast.success("Buzz news added successfully!");
-      setIsEditingBuzz(false);
-      setNewBuzz({ title: '', summary: '', imageURL: '', link: '' });
+      // In a real app, this would update the document in Firestore
+      // await updateDoc(doc(db, 'buzzNews', editingBuzz.id), { ...editingBuzz });
+      
+      // For mock data, we just update the local state
+      setBuzzNews(prev => prev.map(news => news.id === editingBuzz.id ? editingBuzz : news));
+      
+      toast.success("Buzz news updated successfully!");
+      setEditingBuzz(null);
     } catch (error) {
-      console.error("Error adding buzz news:", error);
-      toast.error("Failed to add buzz news");
+      console.error("Error updating buzz news:", error);
+      toast.error("Failed to update buzz news");
     }
   };
 
@@ -400,7 +415,63 @@ const Explore: React.FC = () => {
                ))}
             </div>
           </section>
+        </div>
 
+        {/* RIGHT COLUMN (30%) */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Hive Buzz */}
+          <section className="bg-card rounded-3xl border border-border p-6 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-6 shrink-0">
+              <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
+                <Star className="text-yellow-500" /> Hive Buzz
+              </h2>
+            </div>
+            
+            <div className="space-y-6 overflow-y-auto pr-2 flex-1 custom-scrollbar">
+              {buzzNews.slice(0, 5).map(news => (
+                <div key={news.id} onClick={() => setSelectedBuzz(news)} className="flex gap-6 group cursor-pointer relative bg-muted/30 p-5 rounded-2xl hover:bg-muted/80 transition-colors">
+                  <img src={news.imageURL || `https://picsum.photos/seed/${news.id}/100/100`} alt={news.title} className="w-24 h-24 rounded-xl object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-lg group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-2">{news.title}</h4>
+                    <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{news.summary}</p>
+                  </div>
+                  {isAdmin && (
+                    <div className="absolute -top-2 -right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setEditingBuzz(news); }}
+                        className="bg-blue-500 text-white p-1.5 rounded-full hover:bg-blue-600 transition-colors shadow-sm"
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteBuzz(news.id); }}
+                        className="bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-sm"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <a 
+              href="https://www.mmu.edu.my/mmu-bulletin/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="mt-6 shrink-0 flex items-center justify-center gap-2 w-full text-center bg-primary text-white py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+            >
+              <ExternalLink size={16} />
+              Read more news
+            </a>
+          </section>
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-12">
+        <div className="lg:col-span-8">
           {/* Most Liked Videos */}
           <section className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -429,56 +500,7 @@ const Explore: React.FC = () => {
           </section>
         </div>
 
-        {/* RIGHT COLUMN (30%) */}
-        <div className="lg:col-span-4 space-y-8">
-          
-          {/* Hive Buzz */}
-          <section className="bg-card rounded-3xl border border-border p-6 shadow-sm flex flex-col">
-            <div className="flex items-center justify-between mb-6 shrink-0">
-              <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-                <Star className="text-yellow-500" /> Hive Buzz
-              </h2>
-              {isAdmin && (
-                <button 
-                  onClick={() => setIsEditingBuzz(true)} 
-                  className="text-xs bg-muted text-foreground px-3 py-1.5 rounded-full font-bold hover:bg-muted/80 transition-colors flex items-center gap-1"
-                >
-                  <Edit3 size={12} /> Edit
-                </button>
-              )}
-            </div>
-            
-            <div className="space-y-6 overflow-y-auto pr-2 flex-1 custom-scrollbar">
-              {buzzNews.slice(0, 5).map(news => (
-                <div key={news.id} className="flex gap-6 group cursor-pointer relative bg-muted/30 p-5 rounded-2xl hover:bg-muted/80 transition-colors">
-                  <img src={news.imageURL || `https://picsum.photos/seed/${news.id}/100/100`} alt={news.title} className="w-24 h-24 rounded-xl object-cover shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-lg group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-2">{news.title}</h4>
-                    <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{news.summary}</p>
-                  </div>
-                  {isAdmin && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleDeleteBuzz(news.id); }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            <a 
-              href="https://online.mmu.edu.my/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="mt-6 shrink-0 flex items-center justify-center gap-2 w-full text-center bg-primary text-white py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
-            >
-              <ExternalLink size={16} />
-              Online Portal
-            </a>
-          </section>
-
+        <div className="lg:col-span-4">
           {/* Top Creators */}
           <section className="bg-card rounded-3xl border border-border p-6 shadow-sm">
             <h2 className="text-xl font-black tracking-tight flex items-center gap-2 mb-6">
@@ -509,7 +531,6 @@ const Explore: React.FC = () => {
               ))}
             </div>
           </section>
-
         </div>
       </div>
 
@@ -669,23 +690,50 @@ const Explore: React.FC = () => {
         </div>
       )}
 
-      {isEditingBuzz && (
+      {selectedBuzz && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-2xl rounded-3xl overflow-hidden border border-border shadow-2xl relative">
+            <button 
+              onClick={() => setSelectedBuzz(null)}
+              className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors z-10"
+            >
+              <X size={20} />
+            </button>
+            <img src={selectedBuzz.imageURL || `https://picsum.photos/seed/${selectedBuzz.id}/800/400`} alt={selectedBuzz.title} className="w-full h-64 object-cover" />
+            <div className="p-8">
+              <h2 className="text-3xl font-black mb-4 leading-tight">{selectedBuzz.title}</h2>
+              <p className="text-muted-foreground text-lg mb-8 leading-relaxed">{selectedBuzz.summary}</p>
+              <a 
+                href="https://www.mmu.edu.my/mmu-bulletin/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="inline-flex items-center justify-center gap-2 w-full bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+              >
+                <ExternalLink size={18} />
+                Read more
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingBuzz && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card w-full max-w-2xl rounded-3xl p-8 border border-border shadow-2xl relative">
             <button 
-              onClick={() => setIsEditingBuzz(false)}
+              onClick={() => setEditingBuzz(null)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground"
             >
               <X size={24} />
             </button>
-            <h2 className="text-2xl font-black mb-6">Add Buzz News</h2>
-            <form onSubmit={handleAddBuzz} className="grid grid-cols-1 gap-4">
+            <h2 className="text-2xl font-black mb-6">Edit Buzz News</h2>
+            <form onSubmit={handleUpdateBuzz} className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Title</label>
                 <input 
                   type="text" 
-                  value={newBuzz.title}
-                  onChange={e => setNewBuzz({...newBuzz, title: e.target.value})}
+                  value={editingBuzz.title}
+                  onChange={e => setEditingBuzz({...editingBuzz, title: e.target.value})}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
                   required
                 />
@@ -693,8 +741,8 @@ const Explore: React.FC = () => {
               <div>
                 <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Summary</label>
                 <textarea 
-                  value={newBuzz.summary}
-                  onChange={e => setNewBuzz({...newBuzz, summary: e.target.value})}
+                  value={editingBuzz.summary}
+                  onChange={e => setEditingBuzz({...editingBuzz, summary: e.target.value})}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all resize-none"
                   rows={3}
                   required
@@ -704,8 +752,8 @@ const Explore: React.FC = () => {
                 <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Image URL</label>
                 <input 
                   type="url" 
-                  value={newBuzz.imageURL}
-                  onChange={e => setNewBuzz({...newBuzz, imageURL: e.target.value})}
+                  value={editingBuzz.imageURL}
+                  onChange={e => setEditingBuzz({...editingBuzz, imageURL: e.target.value})}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
                   required
                 />
@@ -714,14 +762,14 @@ const Explore: React.FC = () => {
                 <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Link (Optional)</label>
                 <input 
                   type="url" 
-                  value={newBuzz.link}
-                  onChange={e => setNewBuzz({...newBuzz, link: e.target.value})}
+                  value={editingBuzz.link || ''}
+                  onChange={e => setEditingBuzz({...editingBuzz, link: e.target.value})}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
                 />
               </div>
               <div className="mt-4">
                 <button type="submit" className="w-full bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-primary/90 transition-colors">
-                  Publish News
+                  Update News
                 </button>
               </div>
             </form>

@@ -413,7 +413,7 @@ const Watch: React.FC = () => {
         controls: true,
         responsive: true,
         fluid: true,
-        sources: [{ src: videoSrc, type: 'video/mp4' }],
+        sources: [{ src: videoSrc }],
         controlBar: {
           children: [
             'playToggle',
@@ -429,7 +429,7 @@ const Watch: React.FC = () => {
     } else {
       const currentSrc = playerRef.current.src();
       if (currentSrc !== videoSrc) {
-        playerRef.current.src({ src: videoSrc, type: 'video/mp4' });
+        playerRef.current.src({ src: videoSrc });
       }
     }
   }, [videoSrc, video]);
@@ -465,6 +465,24 @@ const Watch: React.FC = () => {
       </div>
     );
   }
+
+  const handleShare = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({
+        title: video?.title || 'Watch this video on MMUWatch',
+        url: url
+      }).catch(err => {
+        console.error("Error sharing:", err);
+        // Fallback to clipboard if share modal was cancelled or failed
+        navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      });
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!");
+    }
+  };
 
   if (error || !video) {
     return (
@@ -585,7 +603,10 @@ const Watch: React.FC = () => {
                 <span>{isSaved ? 'Saved' : 'Save'}</span>
               </button>
 
-              <button className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold hover:bg-muted text-muted-foreground transition-all">
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold hover:bg-muted text-muted-foreground transition-all"
+              >
                 <Share2 size={20} />
                 <span>Share</span>
               </button>

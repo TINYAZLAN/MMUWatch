@@ -17,6 +17,7 @@ const Upload: React.FC = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadEta, setUploadEta] = useState<string | null>(null);
   const [fileName, setFileName] = useState('');
   const [fileObj, setFileObj] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -58,9 +59,9 @@ const Upload: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const isMp4 = file.type === 'video/mp4' || file.name.toLowerCase().endsWith('.mp4') || file.name.toLowerCase().endsWith('.mp4v');
-      if (!isMp4) {
-        toast.error('Only MP4 or MP4V video files are allowed.');
+      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|avi|wmv|flv|webm|mkv|m4v)$/i);
+      if (!isVideo) {
+        toast.error('Only video files are allowed.');
         e.target.value = '';
         return;
       }
@@ -130,10 +131,31 @@ const Upload: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Simulate upload progress
-      for (let i = 0; i <= 100; i += 10) {
+      // Simulate upload progress based on file size and a simulated fast upload speed
+      const fileSize = fileObj.size; // in bytes
+      const simulatedSpeedBps = 75 * 1024 * 1024; // 75 MB/s
+      const totalEstimatedTimeSeconds = fileSize / simulatedSpeedBps;
+      
+      // Cap the duration between 0.5s and 2.5s for a fast experience
+      const durationMs = Math.max(500, Math.min(totalEstimatedTimeSeconds * 1000, 2500));
+      const steps = 25;
+      const stepDuration = durationMs / steps;
+
+      for (let i = 0; i <= 100; i += (100 / steps)) {
         setUploadProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        const remainingPercentage = 100 - i;
+        const remainingTimeSeconds = (durationMs / 1000) * (remainingPercentage / 100);
+        
+        if (remainingTimeSeconds > 1) {
+          setUploadEta(`Estimated time: ${Math.ceil(remainingTimeSeconds)}s remaining`);
+        } else if (remainingTimeSeconds > 0.2) {
+          setUploadEta(`Estimated time: < 1s remaining`);
+        } else {
+          setUploadEta(`Processing...`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, stepDuration));
       }
 
       // Use a placeholder video URL since Firebase Storage is not enabled
@@ -173,6 +195,7 @@ const Upload: React.FC = () => {
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);
+      setUploadEta(null);
     }
   };
 
@@ -336,6 +359,11 @@ const Upload: React.FC = () => {
                       style={{ width: `${uploadProgress}%` }}
                     ></div>
                   </div>
+                  {uploadEta && (
+                    <div className="text-xs text-muted-foreground text-right font-medium">
+                      {uploadEta}
+                    </div>
+                  )}
                 </div>
               )}
 
