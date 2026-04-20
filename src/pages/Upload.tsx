@@ -9,8 +9,12 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { MMUText } from '../components/MMUText';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
 
 import { FACULTIES, SUBJECTS_BY_FACULTY, ASSIGNMENTS_BY_SUBJECT } from '../constants';
+
+const ffmpeg = new FFmpeg();
 
 const Upload: React.FC = () => {
   const { user, profile } = useAuth();
@@ -131,36 +135,70 @@ const Upload: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Simulate upload progress based on file size and a simulated fast upload speed
-      const fileSize = fileObj.size; // in bytes
-      const simulatedSpeedBps = 75 * 1024 * 1024; // 75 MB/s
-      const totalEstimatedTimeSeconds = fileSize / simulatedSpeedBps;
-      
-      // Cap the duration between 0.5s and 2.5s for a fast experience
-      const durationMs = Math.max(500, Math.min(totalEstimatedTimeSeconds * 1000, 2500));
-      const steps = 25;
-      const stepDuration = durationMs / steps;
+      let uploadFile = fileObj;
+      const needsTranscoding = uploadFile.name.match(/\.(mkv|avi|wmv|flv)$/i);
 
-      for (let i = 0; i <= 100; i += (100 / steps)) {
-        setUploadProgress(i);
-        
-        const remainingPercentage = 100 - i;
-        const remainingTimeSeconds = (durationMs / 1000) * (remainingPercentage / 100);
-        
-        if (remainingTimeSeconds > 1) {
-          setUploadEta(`Estimated time: ${Math.ceil(remainingTimeSeconds)}s remaining`);
-        } else if (remainingTimeSeconds > 0.2) {
-          setUploadEta(`Estimated time: < 1s remaining`);
-        } else {
-          setUploadEta(`Processing...`);
+      if (needsTranscoding) {
+        setUploadEta("Converting to MP4 format with FFmpeg...");
+        if (!ffmpeg.loaded) {
+          await ffmpeg.load({
+            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
+            wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm'
+          });
         }
         
-        await new Promise(resolve => setTimeout(resolve, stepDuration));
+        ffmpeg.on('progress', ({ progress }) => {
+          // Progress from 0 to 50
+          setUploadProgress(Math.round(progress * 50));
+        });
+        
+        await ffmpeg.writeFile('input', await fetchFile(uploadFile));
+        await ffmpeg.exec(['-i', 'input', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
+        const data = await ffmpeg.readFile('output.mp4');
+        const mp4Blob = new Blob([data as Uint8Array], { type: 'video/mp4' });
+        uploadFile = new File([mp4Blob], uploadFile.name.replace(/\.[^/.]+$/, ".mp4"), { type: 'video/mp4' });
+        
+        ffmpeg.off('progress', () => {});
       }
 
-      // Use a placeholder video URL since Firebase Storage is not enabled
-      const videoURL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-      const finalThumbnail = thumbnailPreview || `https://picsum.photos/seed/${Date.now()}/1280/720`;
+      setUploadEta("Uploading to Firebase Storage...");
+      const storageRef = ref(storage, `videos/${user.uid}/${Date.now()}_${uploadFile.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, uploadFile);
+
+      const videoURL = await new Promise<string>((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const upProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * (needsTranscoding ? 50 : 100);
+            setUploadProgress((needsTranscoding ? 50 : 0) + upProgress);
+            
+            const remainingBytes = snapshot.totalBytes - snapshot.bytesTransferred;
+            const simulatedSpeedBps = 10 * 1024 * 1024; // 10 MB/s assumption for ETA
+            const remainingTimeSeconds = remainingBytes / simulatedSpeedBps;
+            
+            if (remainingTimeSeconds > 2) {
+              setUploadEta(`Estimated upload time: ${Math.ceil(remainingTimeSeconds)}s remaining`);
+            } else if (remainingTimeSeconds > 0) {
+              setUploadEta(`Finalizing...`);
+            }
+          },
+          (error) => {
+            reject(error);
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          }
+        );
+      });
+
+      let finalThumbnail = thumbnailPreview || `https://picsum.photos/seed/${Date.now()}/1280/720`;
+      
+      if (thumbnailFile) {
+        setUploadEta("Uploading thumbnail...");
+        const thumbRef = ref(storage, `thumbnails/${user.uid}/${Date.now()}_${thumbnailFile.name}`);
+        await uploadBytesResumable(thumbRef, thumbnailFile);
+        finalThumbnail = await getDownloadURL(thumbRef);
+      }
 
       const docRef = await addDoc(collection(db, 'videos'), {
         title: formData.title,

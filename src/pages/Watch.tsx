@@ -408,12 +408,22 @@ const Watch: React.FC = () => {
       videoElement.classList.add('video-js', 'vjs-big-play-centered', 'vjs-theme-mmu');
       videoRef.current.appendChild(videoElement);
 
+      const getMediaType = (url: string) => {
+        if (!url) return 'video/mp4';
+        const lowerUrl = url.toLowerCase();
+        if (lowerUrl.includes('.webm')) return 'video/webm';
+        if (lowerUrl.includes('.ogg') || lowerUrl.includes('.ogv')) return 'video/ogg';
+        if (lowerUrl.includes('.mov')) return 'video/mp4'; // Quicktime is tricky, tell video.js it's mp4 (H.264)
+        if (lowerUrl.includes('.m3u8')) return 'application/x-mpegURL';
+        return 'video/mp4'; 
+      };
+
       playerRef.current = videojs(videoElement, {
         autoplay: false,
         controls: true,
         responsive: true,
         fluid: true,
-        sources: [{ src: videoSrc }],
+        sources: [{ src: videoSrc, type: getMediaType(videoSrc) }],
         controlBar: {
           children: [
             'playToggle',
@@ -426,10 +436,27 @@ const Watch: React.FC = () => {
           ]
         }
       });
+
+      playerRef.current.on('error', () => {
+        const err = playerRef.current?.error();
+        console.warn("VideoJS Error:", err);
+        if (err && err.code === 4) {
+          toast.error("This video format is unsupported by your browser. Supported formats are MP4 and WebM.", { duration: 8000 });
+        }
+      });
     } else {
       const currentSrc = playerRef.current.src();
       if (currentSrc !== videoSrc) {
-        playerRef.current.src({ src: videoSrc });
+        const getMediaType = (url: string) => {
+          if (!url) return 'video/mp4';
+          const lowerUrl = url.toLowerCase();
+          if (lowerUrl.includes('.webm')) return 'video/webm';
+          if (lowerUrl.includes('.ogg') || lowerUrl.includes('.ogv')) return 'video/ogg';
+          if (lowerUrl.includes('.mov')) return 'video/mp4';
+          if (lowerUrl.includes('.m3u8')) return 'application/x-mpegURL';
+          return 'video/mp4'; 
+        };
+        playerRef.current.src({ src: videoSrc, type: getMediaType(videoSrc) });
       }
     }
   }, [videoSrc, video]);
