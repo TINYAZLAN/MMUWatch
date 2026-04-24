@@ -57,12 +57,18 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, className }) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  let thumbSrc = video.thumbnailURL || `https://picsum.photos/seed/${video.id}/1280/720`;
+  if (thumbSrc && (thumbSrc.startsWith('https://pub-your-domain.r2.dev/') || thumbSrc.startsWith('https://bd0262d2d19a6073af4681161582d9dc.r2.cloudflarestorage.com/video/'))) {
+      const key = thumbSrc.split('/').pop();
+      thumbSrc = `/api/video/${key}`;
+  }
+
   return (
     <div className={cn("group flex flex-col gap-3 cursor-pointer", className)}>
       {/* Thumbnail */}
       <Link to={watchPath} className="relative aspect-video rounded-xl overflow-hidden bg-muted">
         <img referrerPolicy="no-referrer"   
-          src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/1280/720`} 
+          src={thumbSrc} 
           alt={video.title} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           

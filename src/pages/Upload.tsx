@@ -4,7 +4,7 @@ import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles } from 'lucide-react';
+import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -25,8 +25,11 @@ const Upload: React.FC = () => {
   const [fileName, setFileName] = useState('');
   const [fileObj, setFileObj] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [autoThumbnailFile, setAutoThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
+  const [thumbTime, setThumbTime] = useState<number>(0);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -60,6 +63,41 @@ const Upload: React.FC = () => {
     }
   }, [selectedSubject]);
 
+  React.useEffect(() => {
+    return () => {
+      if (videoObjectUrl) {
+        URL.revokeObjectURL(videoObjectUrl);
+      }
+    };
+  }, [videoObjectUrl]);
+
+  const handleSeekThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setThumbTime(time);
+    
+    if (videoObjectUrl && !thumbnailFile) {
+      const videoElement = document.createElement('video');
+      videoElement.src = videoObjectUrl;
+      videoElement.currentTime = time;
+      videoElement.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth || 1280;
+        canvas.height = videoElement.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          setThumbnailPreview(canvas.toDataURL('image/jpeg', 0.7));
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              setAutoThumbnailFile(new File([blob], 'auto-thumbnail.jpg', { type: 'image/jpeg' }));
+            }
+          }, 'image/jpeg', 0.7);
+        }
+      };
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -87,19 +125,47 @@ const Upload: React.FC = () => {
         setFormData(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, "") }));
       }
 
-      // Extract duration
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        if (!isNaN(video.duration) && video.duration !== Infinity) {
-          setVideoDuration(video.duration);
+      // Extract duration and thumbnail
+      const videoElement = document.createElement('video');
+      videoElement.preload = 'metadata';
+      videoElement.onloadedmetadata = () => {
+        if (!isNaN(videoElement.duration) && videoElement.duration !== Infinity) {
+          setVideoDuration(videoElement.duration);
+          const midTime = videoElement.duration > 2 ? videoElement.duration / 2 : 0;
+          setThumbTime(midTime);
+          videoElement.currentTime = midTime;
         }
       };
-      video.onerror = () => {
-        window.URL.revokeObjectURL(video.src);
+      videoElement.onseeked = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth || 1280;
+        canvas.height = videoElement.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+          
+          setThumbnailPreview(prev => {
+             if (!thumbnailFile) {
+               return canvas.toDataURL('image/jpeg', 0.7);
+             }
+             return prev;
+          });
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const autoThumbFile = new File([blob], 'auto-thumbnail.jpg', { type: 'image/jpeg' });
+              setAutoThumbnailFile(autoThumbFile);
+            }
+          }, 'image/jpeg', 0.7);
+        }
+        window.URL.revokeObjectURL(videoElement.src);
       };
-      video.src = URL.createObjectURL(file);
+      videoElement.onerror = () => {
+        window.URL.revokeObjectURL(videoElement.src);
+      };
+      const url = URL.createObjectURL(file);
+      videoElement.src = url;
+      setVideoObjectUrl(url);
     }
   };
 
@@ -161,43 +227,70 @@ const Upload: React.FC = () => {
         ffmpeg.off('progress', () => {});
       }
 
-      setUploadEta("Uploading to Firebase Storage...");
-      const storageRef = ref(storage, `videos/${user.uid}/${Date.now()}_${uploadFile.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, uploadFile);
-
-      const videoURL = await new Promise<string>((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const upProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * (needsTranscoding ? 50 : 100);
-            setUploadProgress((needsTranscoding ? 50 : 0) + upProgress);
-            
-            const remainingBytes = snapshot.totalBytes - snapshot.bytesTransferred;
-            const simulatedSpeedBps = 10 * 1024 * 1024; // 10 MB/s assumption for ETA
-            const remainingTimeSeconds = remainingBytes / simulatedSpeedBps;
-            
-            if (remainingTimeSeconds > 2) {
-              setUploadEta(`Estimated upload time: ${Math.ceil(remainingTimeSeconds)}s remaining`);
-            } else if (remainingTimeSeconds > 0) {
-              setUploadEta(`Finalizing...`);
-            }
-          },
-          (error) => {
-            reject(error);
-          },
-          async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
-          }
-        );
-      });
-
-      let finalThumbnail = thumbnailPreview || `https://picsum.photos/seed/${Date.now()}/1280/720`;
+      setUploadEta("Uploading to Cloudflare R2...");
       
-      if (thumbnailFile) {
+      const uploadToCloudflare = async (file: File): Promise<string> => {
+        const res = await fetch("/api/signed-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            filename: file.name, 
+            contentType: file.type
+          })
+        });
+        
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to generate signed URL");
+        }
+        
+        const { signedUrl, publicUrl } = await res.json();
+        
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", signedUrl, true);
+          xhr.setRequestHeader("Content-Type", file.type);
+          
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const upProgress = (event.loaded / event.total) * (needsTranscoding ? 50 : 100);
+              setUploadProgress((needsTranscoding ? 50 : 0) + upProgress);
+              
+              const remainingBytes = event.total - event.loaded;
+              const simulatedSpeedBps = 10 * 1024 * 1024; // 10 MB/s assumption for ETA
+              const remainingTimeSeconds = remainingBytes / simulatedSpeedBps;
+              
+              if (remainingTimeSeconds > 2) {
+                setUploadEta(`Estimated upload time: ${Math.ceil(remainingTimeSeconds)}s remaining`);
+              } else if (remainingTimeSeconds > 0) {
+                setUploadEta(`Finalizing...`);
+              }
+            }
+          };
+          
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(publicUrl);
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          };
+          
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.send(file);
+        });
+      };
+
+      const videoURL = await uploadToCloudflare(uploadFile);
+
+      let finalThumbnail = `https://picsum.photos/seed/${Date.now()}/1280/720`;
+      
+      const thumbFileToUpload = thumbnailFile || autoThumbnailFile;
+      if (thumbFileToUpload) {
         setUploadEta("Uploading thumbnail...");
-        const thumbRef = ref(storage, `thumbnails/${user.uid}/${Date.now()}_${thumbnailFile.name}`);
-        await uploadBytesResumable(thumbRef, thumbnailFile);
-        finalThumbnail = await getDownloadURL(thumbRef);
+        finalThumbnail = await uploadToCloudflare(thumbFileToUpload);
+      } else if (thumbnailPreview) {
+        finalThumbnail = thumbnailPreview;
       }
 
       const docRef = await addDoc(collection(db, 'videos'), {
@@ -252,11 +345,13 @@ const Upload: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="bg-[#E31837] p-2 rounded-xl">
-          <UploadIcon size={24} className="text-white" />
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-[#E31837] p-2 rounded-xl">
+            <UploadIcon size={24} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-black tracking-tighter">Upload Video</h1>
         </div>
-        <h1 className="text-3xl font-black tracking-tighter">Upload Video</h1>
       </div>
 
       <div className={cn("grid grid-cols-1 gap-8", isStaff ? "lg:grid-cols-1 max-w-3xl mx-auto" : "lg:grid-cols-3")}>
@@ -297,21 +392,37 @@ const Upload: React.FC = () => {
                 <div className="space-y-1">
                   <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Video Thumbnail</label>
                   <div className="flex items-center gap-4">
-                    <div className="w-40 h-24 bg-muted border border-border rounded-xl overflow-hidden flex items-center justify-center relative">
-                      {thumbnailPreview ? (
-                        <img referrerPolicy="no-referrer" src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-muted-foreground/40 text-xs text-center p-2">No thumbnail selected</div>
+                    <div className="flex flex-col gap-2">
+                      <div className="w-40 h-24 bg-muted border border-border rounded-xl overflow-hidden flex items-center justify-center relative">
+                        {thumbnailPreview ? (
+                          <img referrerPolicy="no-referrer" src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-muted-foreground/40 text-xs text-center p-2">No thumbnail selected</div>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={handleThumbnailChange}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </div>
+                      {videoObjectUrl && !thumbnailFile && videoDuration > 0 && (
+                        <div className="w-40 flex flex-col gap-1">
+                          <label className="text-[10px] text-muted-foreground font-bold">Select frame from video:</label>
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max={videoDuration} 
+                            step="0.1" 
+                            value={thumbTime} 
+                            onChange={handleSeekThumbnail}
+                            className="w-full h-1.5 bg-muted-foreground/30 rounded-lg appearance-none cursor-pointer accent-primary"
+                          />
+                        </div>
                       )}
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleThumbnailChange}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-2">Upload a custom thumbnail for your video. Recommended size: 1280x720.</p>
+                      <p className="text-xs text-muted-foreground mb-2">Upload a custom thumbnail for your video, or select a frame. Recommended size: 1280x720.</p>
                       <label className="bg-muted hover:bg-muted/80 text-foreground px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-colors border border-border">
                         Choose Image
                         <input type="file" accept="image/*" onChange={handleThumbnailChange} className="hidden" />

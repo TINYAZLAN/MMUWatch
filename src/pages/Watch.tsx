@@ -51,7 +51,15 @@ const Watch: React.FC = () => {
 
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
 
-  const videoSrc = video?.videoURL || (video as any)?.url;
+  let videoSrc = video?.videoURL || (video as any)?.url;
+  
+  // Intercept dummy or direct S3 domains and route them to our proxy
+  if (videoSrc) {
+    if (videoSrc.startsWith('https://pub-your-domain.r2.dev/') || videoSrc.startsWith('https://bd0262d2d19a6073af4681161582d9dc.r2.cloudflarestorage.com/video/')) {
+        const key = videoSrc.split('/').pop();
+        videoSrc = `/api/video/${key}`;
+    }
+  }
 
   const hasIncrementedViews = useRef(false);
 
@@ -460,6 +468,29 @@ const Watch: React.FC = () => {
       }
     }
   }, [videoSrc, video]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in a textarea/input
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if (e.code === 'Space') {
+        e.preventDefault(); // prevent page scrolling
+        if (playerRef.current) {
+          if (playerRef.current.paused()) {
+            playerRef.current.play();
+          } else {
+            playerRef.current.pause();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Clean up player on unmount or when route changes
   useEffect(() => {
