@@ -10,9 +10,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Filename and contentType are required' });
   }
 
-  const accountId = process.env.R2_ACCOUNT_ID || "bd0262d2d19a6073af4681161582d9dc";
-  const accessKeyId = req.body.cloudflareConfig?.accessKeyId || process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = req.body.cloudflareConfig?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY;
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "bd0262d2d19a6073af4681161582d9dc";
+  const accessKeyId = req.body.cloudflareConfig?.accessKeyId || process.env.R2_ACCESS_KEY_ID || "a9ade5fcb43debdacde507010135d546";
+  const secretAccessKey = req.body.cloudflareConfig?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "2367102cbee5ed06bf35c200ecc290b404f72e692f8bba68f6f2078da75ac663";
   const bucketName = process.env.R2_BUCKET_NAME || 'video';
 
   if (!accountId || !accessKeyId || !secretAccessKey) {

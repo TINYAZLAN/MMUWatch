@@ -25,10 +25,10 @@ async function startServer() {
         return res.status(400).json({ error: "Filename and contentType are required" });
       }
 
-      const accountId = "bd0262d2d19a6073af4681161582d9dc";
-      const bucketName = "video";
-      const accessKeyId = req.body.cloudflareConfig?.accessKeyId || process.env.R2_ACCESS_KEY_ID;
-      const secretAccessKey = req.body.cloudflareConfig?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY;
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "bd0262d2d19a6073af4681161582d9dc";
+      const bucketName = process.env.R2_BUCKET_NAME || "video";
+      const accessKeyId = req.body.cloudflareConfig?.accessKeyId || process.env.R2_ACCESS_KEY_ID || "a9ade5fcb43debdacde507010135d546";
+      const secretAccessKey = req.body.cloudflareConfig?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "2367102cbee5ed06bf35c200ecc290b404f72e692f8bba68f6f2078da75ac663";
       const publicDomain = "/api/video";
 
       if (!accessKeyId || !secretAccessKey) {
@@ -69,10 +69,10 @@ async function startServer() {
     try {
       const { key } = req.params;
       
-      const accountId = "bd0262d2d19a6073af4681161582d9dc";
-      const bucketName = "video";
-      const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-      const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "bd0262d2d19a6073af4681161582d9dc";
+      const bucketName = process.env.R2_BUCKET_NAME || "video";
+      const accessKeyId = process.env.R2_ACCESS_KEY_ID || "a9ade5fcb43debdacde507010135d546";
+      const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || "2367102cbee5ed06bf35c200ecc290b404f72e692f8bba68f6f2078da75ac663";
 
       if (!accessKeyId || !secretAccessKey) {
         return res.status(500).send("Cloudflare R2 is not fully configured on the server.");
