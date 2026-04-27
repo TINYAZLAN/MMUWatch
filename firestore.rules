@@ -153,7 +153,7 @@ service cloud.firestore {
       allow read: if true; // Publicly readable for profiles and leaderboards
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'viewer' || isAdmin());
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.get('role', request.resource.data.role) || !(resource.data.get('role', '') in ['viewer', 'creator', 'admin']) || isAdmin())) || 
-                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'followerCount', 'following', 'followingCount']));
+                    (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'followerCount', 'following', 'followingCount', 'friends', 'joinedClubs']));
       allow delete: if isAdmin() || isOwner(userId);
     }
 

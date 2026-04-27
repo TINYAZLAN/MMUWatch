@@ -211,13 +211,14 @@ const UserProfile: React.FC = () => {
   };
 
   const handleInvite = async () => {
-    if (!user || !userId) return;
+    if (!user || !userId) {
+       toast.error("Please sign in");
+       return;
+    }
     try {
       const myRef = doc(db, 'users', user.uid);
       const theirRef = doc(db, 'users', userId);
       
-      // For simplicity in this demo, we'll just add each other to friends list immediately
-      // In a real app, this would be a multi-step invitation/acceptance flow
       await updateDoc(myRef, {
         friends: arrayUnion(userId)
       });
@@ -225,15 +226,18 @@ const UserProfile: React.FC = () => {
         friends: arrayUnion(user.uid)
       });
 
-      setInviteSent(true);
-      toast.success("Friend added!", {
-        description: "You can now chat privately in the Friends section."
+      setProfile(prev => prev ? { ...prev, friends: [...(prev.friends || []), user.uid] } : null);
+      
+      toast.success("Added to Friends!", {
+        description: "You can now chat privately."
       });
     } catch (error) {
       console.error("Error adding friend:", error);
       toast.error("Failed to add friend");
     }
   };
+
+  const isFriend = profile?.friends?.includes(user?.uid || '');
 
   const handleDeleteVideo = (e: React.MouseEvent, videoId: string, creatorId: string) => {
     e.preventDefault();
@@ -365,14 +369,14 @@ const UserProfile: React.FC = () => {
           <div className="flex flex-wrap justify-center gap-3 relative">
             <button 
               onClick={handleInvite}
-              disabled={inviteSent}
+              disabled={isFriend}
               className={cn(
                 "flex items-center gap-2 px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-[10px] transition-all shadow-lg",
-                inviteSent ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
+                isFriend ? 'bg-muted text-green-500 cursor-not-allowed border border-green-500/30' : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
               )}
             >
-              <MessageCircle size={16} />
-              {inviteSent ? 'Invite Sent' : 'Invite to Chat'}
+              {isFriend ? <CheckCircle2 size={16} /> : <UserPlus size={16} />}
+              {isFriend ? 'Friends' : 'Add Friend'}
             </button>
             <button 
               onClick={handleFollow}

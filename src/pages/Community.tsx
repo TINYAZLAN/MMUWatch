@@ -1,435 +1,339 @@
-import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../firebase';
-import { CommunityClub, CommunityEvent, CommunityPost } from '../types';
-import { useAuth } from '../AuthProvider';
-import { Users, Calendar, Megaphone, PlusCircle, Image as ImageIcon, Send, Tag, X, Loader2, MapPin, MessageSquare } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import React, { useState, useEffect } from 'react';
+import { Search, Sparkles, Loader2, X } from 'lucide-react';
+import { LeftSidebar } from '../components/community/LeftSidebar';
+import { RightSidebar } from '../components/community/RightSidebar';
+import { PostCard } from '../components/community/PostCard';
+import { CreatePostBox } from '../components/community/CreatePostBox';
 import { MMUText } from '../components/MMUText';
-
-type TabType = 'clubs' | 'events' | 'posts';
+import { useAuth } from '../AuthProvider';
+import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, where, documentId, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Community: React.FC = () => {
   const { user, profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>('posts');
+  const navigate = useNavigate();
+  const [activeItem, setActiveItem] = useState('home');
+  const [activeFeed, setActiveFeed] = useState<'latest' | 'trending'>('latest');
+  const [postsLimit, setPostsLimit] = useState(10);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   
-  const [clubs, setClubs] = useState<CommunityClub[]>([]);
-  const [events, setEvents] = useState<CommunityEvent[]>([]);
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
-  
+  const [posts, setPosts] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [latestEvent, setLatestEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  
-  // Forms state
-  const [newClub, setNewClub] = useState({ name: '', description: '' });
-  const [newEvent, setNewEvent] = useState({ title: '', description: '', date: '', location: '' });
-  const [newPost, setNewPost] = useState({ title: '', content: '', tags: '' });
 
-  const isStaff = !profile?.studentId && (profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com' || user?.email?.endsWith('@mmu.edu.my'));
-  const isStudent = !!profile?.studentId;
+  const [clubs, setClubs] = useState<any[]>([]);
+  const [clubsLoading, setClubsLoading] = useState(false);
+  const [isCreatingClub, setIsCreatingClub] = useState(false);
+  const [newClubName, setNewClubName] = useState('');
+  const [newClubDesc, setNewClubDesc] = useState('');
+  const [isSubmittingClub, setIsSubmittingClub] = useState(false);
+
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
 
   useEffect(() => {
-    setLoading(true);
+    if (activeItem === 'trending') {
+      setActiveFeed('trending');
+      setActiveTag(null);
+    } else if (activeItem === 'home') {
+      setActiveFeed('latest');
+      setActiveTag(null);
+    } else if (activeItem === 'clubs') {
+      // Load clubs
+      setClubsLoading(true);
+      const unsub = onSnapshot(query(collection(db, 'communityClubs'), orderBy('createdAt', 'desc')), snap => {
+        setClubs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setClubsLoading(false);
+      });
+      return () => unsub();
+    }
+  }, [activeItem]);
+
+  useEffect(() => {
+    // Fetch latest event for banner
+    const eventQ = query(collection(db, 'events'), orderBy('createdAt', 'desc'), limit(1));
+    const unsubEvent = onSnapshot(eventQ, snapshot => {
+      if (!snapshot.empty) {
+        setLatestEvent({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      }
+    });
+
+    // Fetch actual friends
+    if (profile?.friends && profile.friends.length > 0) {
+      // Split into chunks if > 10, but let's just get the first 10 for sidebar
+      const friendIds = profile.friends.slice(0, 10);
+      const usersQ = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
+      const unsubUsers = onSnapshot(usersQ, snapshot => {
+        setOnlineUsers(snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.username || data.displayName || 'User',
+            avatar: data.photoURL || `https://ui-avatars.com/api/?name=${data.username || 'User'}&background=random`
+          };
+        }));
+      });
+      return () => {
+        unsubEvent();
+        unsubUsers();
+      };
+    } else {
+      setOnlineUsers([]);
+      return () => unsubEvent();
+    }
+  }, [profile?.friends]);
+
+  useEffect(() => {
+    if (activeItem === 'clubs') return;
     
-    const unsubscribeClubs = onSnapshot(query(collection(db, 'communityClubs'), orderBy('createdAt', 'desc'), limit(20)), (snapshot) => {
-      setClubs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityClub)));
-    });
+    setLoading(true);
+    let q;
+    if (activeTag) {
+      q = query(collection(db, 'communityPosts'), where('tags', 'array-contains', activeTag), orderBy('createdAt', 'desc'), limit(postsLimit));
+    } else if (activeFeed === 'latest') {
+      q = query(collection(db, 'communityPosts'), orderBy('createdAt', 'desc'), limit(postsLimit));
+    } else {
+      q = query(collection(db, 'communityPosts'), orderBy('upvotes', 'desc'), limit(postsLimit));
+    }
 
-    const unsubscribeEvents = onSnapshot(query(collection(db, 'communityEvents'), orderBy('createdAt', 'desc'), limit(20)), (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityEvent)));
-    });
-
-    const unsubscribePosts = onSnapshot(query(collection(db, 'communityPosts'), orderBy('createdAt', 'desc'), limit(20)), (snapshot) => {
-      setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommunityPost)));
+    const unsubPosts = onSnapshot(q, snapshot => {
+      setPosts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
 
-    return () => {
-      unsubscribeClubs();
-      unsubscribeEvents();
-      unsubscribePosts();
-    };
-  }, []);
+    return () => unsubPosts();
+  }, [activeFeed, postsLimit, activeTag, activeItem]);
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    try {
-      if (activeTab === 'clubs' && isAdmin) {
-        if (!newClub.name || !newClub.description) return;
-        await addDoc(collection(db, 'communityClubs'), {
-          name: newClub.name,
-          description: newClub.description,
-          creatorId: user.uid,
-          createdAt: serverTimestamp()
-        });
-        setNewClub({ name: '', description: '' });
-        toast.success("Club created!");
-      } else if (activeTab === 'events' && isAdmin) {
-        if (!newEvent.title || !newEvent.description || !newEvent.date || !newEvent.location) return;
-        await addDoc(collection(db, 'communityEvents'), {
-          title: newEvent.title,
-          description: newEvent.description,
-          date: newEvent.date,
-          location: newEvent.location,
-          creatorId: user.uid,
-          createdAt: serverTimestamp()
-        });
-        setNewEvent({ title: '', description: '', date: '', location: '' });
-        toast.success("Event created!");
-      } else if (activeTab === 'posts' && (isStaff || isStudent)) {
-        if (!newPost.title || !newPost.content) return;
-        const tagsArray = newPost.tags.split(',').map(tag => tag.trim()).filter(Boolean);
-        await addDoc(collection(db, 'communityPosts'), {
-          title: newPost.title,
-          content: newPost.content,
-          tags: tagsArray,
-          creatorId: user.uid,
-          creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
-          createdAt: serverTimestamp()
-        });
-        setNewPost({ title: '', content: '', tags: '' });
-        toast.success("Post created!");
+  const handleDeletePost = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        await deleteDoc(doc(db, 'communityPosts', id));
+        toast.success("Post deleted");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete post");
       }
-      setIsCreating(false);
-    } catch (error) {
-      console.error('Error creating item:', error);
-      toast.error("Failed to create item");
     }
   };
 
-  const handleDelete = async (collectionName: string, id: string) => {
-    if (collectionName === 'communityClubs' || collectionName === 'communityEvents') {
-      if (!isAdmin) return;
-    } else {
-      if (!isStaff) return;
-    }
-    
+  const handleCreateClub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClubName.trim() || !newClubDesc.trim()) return;
+    setIsSubmittingClub(true);
     try {
-      await deleteDoc(doc(db, collectionName, id));
-      toast.success("Deleted successfully");
-    } catch (error) {
-      console.error("Error deleting item:", error);
-      toast.error("Failed to delete item");
-    }
-  };
-
-  const handleJoinClub = async (clubName: string) => {
-    if (!user) {
-      toast.error("Please sign in to join clubs");
-      return;
-    }
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        joinedClubs: arrayUnion(clubName)
+      await addDoc(collection(db, 'communityClubs'), {
+        name: newClubName,
+        description: newClubDesc,
+        createdAt: serverTimestamp(),
       });
-      toast.success(`Joined ${clubName}!`);
+      setNewClubName('');
+      setNewClubDesc('');
+      setIsCreatingClub(false);
+      toast.success("Club created!");
     } catch (error) {
-      console.error("Error joining club:", error);
-      toast.error("Failed to join club");
+       console.error(error);
+       toast.error("Failed to create club");
+    } finally {
+       setIsSubmittingClub(false);
     }
   };
-
-  const canCreate = (activeTab === 'clubs' || activeTab === 'events') ? isAdmin : (isStaff || isStudent);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="bg-primary p-3 rounded-2xl shadow-lg shadow-primary/20">
-            <Users size={32} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-4xl font-black tracking-tighter">Community</h1>
-            <p className="text-muted-foreground font-medium"><MMUText text="Connect, share, and discover at MMU." /></p>
-          </div>
-        </div>
-        
-        {canCreate && !isCreating && (
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-full font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all shadow-xl shadow-primary/20"
-          >
-            <PlusCircle size={20} />
-            Create {activeTab === 'clubs' ? 'Club' : activeTab === 'events' ? 'Event' : 'Post'}
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-2xl w-fit">
-        <button
-          onClick={() => { setActiveTab('posts'); setIsCreating(false); }}
-          className={cn("px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2", activeTab === 'posts' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-        >
-          <MessageSquare size={18} /> Posts
-        </button>
-        <button
-          onClick={() => { setActiveTab('events'); setIsCreating(false); }}
-          className={cn("px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2", activeTab === 'events' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-        >
-          <Calendar size={18} /> Events
-        </button>
-        <button
-          onClick={() => { setActiveTab('clubs'); setIsCreating(false); }}
-          className={cn("px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2", activeTab === 'clubs' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
-        >
-          <Users size={18} /> Clubs
-        </button>
-      </div>
-
-      {isCreating && (
-        <div className="bg-card p-8 rounded-3xl border border-border shadow-2xl animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Megaphone className="text-primary" /> 
-              New {activeTab === 'clubs' ? 'Club' : activeTab === 'events' ? 'Event' : 'Post'}
-            </h2>
-            <button 
-              onClick={() => setIsCreating(false)} 
-              className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          
-          <form onSubmit={handleCreateSubmit} className="space-y-6">
-            {activeTab === 'clubs' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Club Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Robotics Club" 
-                    value={newClub.name}
-                    onChange={e => setNewClub({...newClub, name: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Description</label>
-                  <textarea 
-                    placeholder="What is this club about?" 
-                    rows={4}
-                    value={newClub.description}
-                    onChange={e => setNewClub({...newClub, description: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all resize-none"
-                    required
-                  />
-                </div>
-              </>
-            )}
-
-            {activeTab === 'events' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Event Title</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Annual Hackathon" 
-                    value={newEvent.title}
-                    onChange={e => setNewEvent({...newEvent, title: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Date & Time</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. 24 Oct 2026, 10:00 AM" 
-                      value={newEvent.date}
-                      onChange={e => setNewEvent({...newEvent, date: e.target.value})}
-                      className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Location</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. FCI Grand Hall" 
-                      value={newEvent.location}
-                      onChange={e => setNewEvent({...newEvent, location: e.target.value})}
-                      className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Description</label>
-                  <textarea 
-                    placeholder="Event details..." 
-                    rows={4}
-                    value={newEvent.description}
-                    onChange={e => setNewEvent({...newEvent, description: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all resize-none"
-                    required
-                  />
-                </div>
-              </>
-            )}
-
-            {activeTab === 'posts' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Post Title</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. My thoughts on the new curriculum" 
-                    value={newPost.title}
-                    onChange={e => setNewPost({...newPost, title: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Tags (comma separated)</label>
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Discussion, Academic, Life" 
-                      value={newPost.tags}
-                      onChange={e => setNewPost({...newPost, tags: e.target.value})}
-                      className="w-full bg-muted border border-border rounded-2xl px-5 py-4 pl-12 focus:outline-none focus:border-primary transition-all"
-                    />
-                    <Tag className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Content</label>
-                  <textarea 
-                    placeholder="Write your post here..." 
-                    rows={6}
-                    value={newPost.content}
-                    onChange={e => setNewPost({...newPost, content: e.target.value})}
-                    className="w-full bg-muted border border-border rounded-2xl px-5 py-4 focus:outline-none focus:border-primary transition-all resize-none"
-                    required
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="flex items-center justify-end pt-4">
-              <button type="submit" className="flex items-center gap-2 bg-primary text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all shadow-xl shadow-primary/20">
-                <Send size={18} /> Publish
-              </button>
+    <div className="min-h-screen bg-background pb-20">
+      
+      {/* Top Header / Pinned Announcement - Pushing below main nav */}
+      {latestEvent && (
+        <div className="bg-gradient-to-r from-primary/20 via-[#0f1115] to-[#0f1115] border-b border-primary/20 py-2 relative overflow-hidden hidden md:block">
+          <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 pointer-events-none"></div>
+          <div className="max-w-[1400px] mx-auto px-6 lg:px-10 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <span className="bg-primary text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full animate-pulse">Live</span>
+              <p className="text-white/80 font-medium whitespace-nowrap overflow-hidden text-ellipsis"><span className="text-white font-bold">{latestEvent.title}</span> is coming up. Don't miss out!</p>
             </div>
-          </form>
+            <button onClick={() => navigate('/explore')} className="text-primary hover:text-white font-bold transition-colors">See Event &rarr;</button>
+          </div>
         </div>
       )}
 
-      <div className="space-y-6">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="animate-spin text-primary" size={48} />
-            <p className="text-muted-foreground font-bold">Loading...</p>
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 pt-6 lg:pt-8 flex gap-8">
+        
+        {/* Left Column (Navigation) */}
+        <LeftSidebar activeItem={activeItem} setActiveItem={setActiveItem} onlineUsers={onlineUsers} />
+
+        {/* Middle Column (Feed) */}
+        <main className="flex-1 max-w-[700px] mx-auto w-full pb-20">
+          
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter text-white flex items-center gap-3">
+                <Sparkles className="text-primary filling-primary animate-pulse" />
+                Community
+              </h1>
+              <p className="text-muted-foreground font-medium mt-1"><MMUText text="Connect, share, and discover at MMU." /></p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {activeItem === 'clubs' && isAdmin && (
+                <button onClick={() => setIsCreatingClub(!isCreatingClub)} className="bg-primary text-white text-xs px-4 py-2 font-bold rounded-lg shadow-lg">
+                  {isCreatingClub ? 'Cancel' : '+ Create Club'}
+                </button>
+              )}
+              <button className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted-foreground hover:bg-white/10 hover:text-white transition-all relative">
+                <Search size={18} />
+              </button>
+            </div>
           </div>
-        ) : (
-          <>
-            {activeTab === 'posts' && (
-              <div className="grid grid-cols-1 gap-6">
-                {posts.length > 0 ? posts.map(post => (
-                  <div key={post.id} className="bg-card p-8 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-2xl font-black tracking-tight mb-2">{post.title}</h3>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span className="font-bold text-foreground">{post.creatorName || 'Anonymous'}</span>
-                          <span>•</span>
-                          <span>{post.createdAt ? formatDistanceToNow(new Date(post.createdAt.toMillis ? post.createdAt.toMillis() : post.createdAt)) + ' ago' : 'Recently'}</span>
-                        </div>
-                      </div>
-                      {(isStaff || user?.uid === post.creatorId) && (
-                        <button onClick={() => handleDelete('communityPosts', post.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-2">
-                          <X size={20} />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap text-lg mb-6">{post.content}</p>
-                    {post.tags && post.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {post.tags.map(tag => (
-                          <span key={tag} className="bg-muted text-muted-foreground px-3 py-1 rounded-lg text-xs font-bold border border-border">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )) : (
-                  <div className="text-center py-20 bg-card rounded-3xl border border-border border-dashed text-muted-foreground">No posts yet.</div>
-                )}
-              </div>
-            )}
 
-            {activeTab === 'events' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {events.length > 0 ? events.map(event => (
-                  <div key={event.id} className="bg-card p-8 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-2xl font-black tracking-tight">{event.title}</h3>
-                      {isStaff && (
-                        <button onClick={() => handleDelete('communityEvents', event.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1">
-                          <X size={20} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-3 mb-6 flex-1">
-                      <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                        <Calendar size={16} /> {event.date}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
-                        <MapPin size={16} /> {event.location}
-                      </div>
-                      <p className="text-muted-foreground leading-relaxed mt-4">{event.description}</p>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="col-span-full text-center py-20 bg-card rounded-3xl border border-border border-dashed text-muted-foreground">No events yet.</div>
-                )}
-              </div>
-            )}
+          {activeItem === 'clubs' ? (
+             <div className="space-y-4">
+               <h2 className="text-xl font-bold text-white mb-4">All Clubs</h2>
+               
+               {isCreatingClub && (
+                 <form onSubmit={handleCreateClub} className="bg-[#0f1115] border border-primary/30 rounded-[1.5rem] p-5 mb-6">
+                   <h3 className="font-bold text-white mb-4">Create New Club</h3>
+                   <input
+                     type="text"
+                     placeholder="Club Name"
+                     value={newClubName}
+                     onChange={e => setNewClubName(e.target.value)}
+                     className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-primary focus:outline-none mb-3"
+                     required
+                   />
+                   <textarea
+                     placeholder="Club Description"
+                     value={newClubDesc}
+                     onChange={e => setNewClubDesc(e.target.value)}
+                     className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-primary focus:outline-none mb-4 resize-none"
+                     rows={3}
+                     required
+                   />
+                   <button
+                     type="submit"
+                     disabled={isSubmittingClub}
+                     className="bg-primary text-white px-6 py-2 rounded-full font-bold text-sm hover:scale-105 transition-transform flex items-center gap-2"
+                   >
+                     {isSubmittingClub && <Loader2 className="animate-spin" size={16} />}
+                     Create
+                   </button>
+                 </form>
+               )}
 
-            {activeTab === 'clubs' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {clubs.length > 0 ? clubs.map(club => (
-                  <div key={club.id} className="bg-card p-8 rounded-3xl border border-border shadow-sm hover:shadow-md transition-all flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center font-black text-xl text-white shadow-lg shadow-primary/20">
-                          {club.name.charAt(0)}
+               {clubsLoading ? (
+                 <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+               ) : clubs.length > 0 ? (
+                 clubs.map(club => (
+                   <div key={club.id} className="bg-[#0f1115] border border-white/5 rounded-[1.5rem] p-5 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                     <div className="flex items-center gap-4">
+                       <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20 text-xl font-black text-white">
+                         {club.name.charAt(0)}
+                       </div>
+                       <div>
+                         <h3 className="font-bold text-white text-lg">{club.name}</h3>
+                         <p className="text-sm text-muted-foreground line-clamp-1">{club.description || 'A great club to join.'}</p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-4">
+                        <div className="hidden sm:block text-xs text-muted-foreground bg-white/5 px-3 py-2 rounded-lg max-w-[200px] line-clamp-2">
+                           <span className="font-bold text-white block mb-1">Latest Post:</span>
+                           {club.latestPostTitle || "Welcome to the club!"}
                         </div>
-                        <h3 className="text-2xl font-black tracking-tight">{club.name}</h3>
-                      </div>
-                      {isStaff && (
-                        <button onClick={() => handleDelete('communityClubs', club.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1">
-                          <X size={20} />
+                        <button 
+                          onClick={() => toast.success(`Added ${club.name} to chats!`)}
+                          className="bg-primary/20 text-primary hover:bg-primary hover:text-white px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap"
+                        >
+                          Join Club
                         </button>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed mb-8 flex-1">{club.description}</p>
+                     </div>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center py-10 text-muted-foreground">No clubs found.</div>
+               )}
+             </div>
+          ) : (
+            <>
+              <CreatePostBox />
+
+              {/* Feed Toggles */}
+              <div className="flex items-center gap-6 mt-8 mb-6 border-b border-white/5 pb-2 relative">
+                {activeTag ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-white font-bold bg-primary/20 text-primary px-3 py-1 rounded-full text-sm">
+                      #{activeTag}
+                    </span>
                     <button 
-                      onClick={() => handleJoinClub(club.name)}
-                      className="w-full bg-primary/10 text-primary py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-primary hover:text-white transition-all"
+                      onClick={() => setActiveTag(null)}
+                      className="text-xs text-muted-foreground hover:text-white flex items-center gap-1"
                     >
-                      Join Club
+                      <X size={14} /> Clear Filter
                     </button>
                   </div>
-                )) : (
-                  <div className="col-span-full text-center py-20 bg-card rounded-3xl border border-border border-dashed text-muted-foreground">No clubs yet.</div>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => { setActiveFeed('latest'); setPostsLimit(10); }}
+                      className={`pb-2 text-sm font-bold transition-all relative ${activeFeed === 'latest' ? 'text-white' : 'text-muted-foreground hover:text-white/80'}`}
+                    >
+                      Latest Posts
+                      {activeFeed === 'latest' && <span className="absolute bottom-[-9px] left-0 w-full h-[3px] bg-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--primary),0.5)]"></span>}
+                    </button>
+                    <button 
+                      onClick={() => { setActiveFeed('trending'); setPostsLimit(10); }}
+                      className={`pb-2 text-sm font-bold transition-all relative ${activeFeed === 'trending' ? 'text-white' : 'text-muted-foreground hover:text-white/80'}`}
+                    >
+                      Trending Feed
+                      {activeFeed === 'trending' && <span className="absolute bottom-[-9px] left-0 w-full h-[3px] bg-primary rounded-t-full shadow-[0_-2px_10px_rgba(var(--primary),0.5)]"></span>}
+                    </button>
+                  </>
                 )}
               </div>
-            )}
-          </>
-        )}
+
+              {/* Post Feed */}
+              <div className="space-y-6 flex flex-col">
+                {loading && posts.length === 0 ? (
+                  <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
+                ) : posts.length > 0 ? (
+                  posts.map(post => (
+                    <PostCard 
+                      key={post.id} 
+                      post={post} 
+                      onDelete={handleDeletePost} 
+                      canDelete={isAdmin || post.creatorId === user?.uid} 
+                      onTagClick={(tag) => { setActiveTag(tag); setPostsLimit(10); }}
+                    />
+                  ))
+                ) : (
+                  <div className="py-20 text-center text-muted-foreground">No posts found.</div>
+                )}
+                
+                {posts.length >= postsLimit && (
+                  <button 
+                    onClick={() => setPostsLimit(prev => prev + 10)}
+                    className="mx-auto mt-6 px-6 py-2 bg-white/5 text-white/80 hover:text-white hover:bg-white/10 rounded-full text-sm font-bold transition-all"
+                  >
+                    Load More
+                  </button>
+                )}
+
+                {/* End of feed indicator */}
+                {!loading && posts.length < postsLimit && posts.length > 0 && (
+                  <div className="py-10 text-center mt-4">
+                    <div className="w-16 h-1 bg-white/5 mx-auto rounded-full mb-4"></div>
+                    <p className="text-muted-foreground text-sm font-medium">You've reached the end of the feed.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+        </main>
+
+        {/* Right Column (Widgets) */}
+        <RightSidebar />
+        
       </div>
     </div>
   );
