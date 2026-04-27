@@ -172,6 +172,11 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
     }
 
+    match /videos/{videoId}/viewers/{viewerId} {
+      allow read: if isAuthenticated() && request.auth.uid == viewerId;
+      allow write: if isAuthenticated() && request.auth.uid == viewerId;
+    }
+
     match /videos/{videoId}/comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
@@ -227,6 +232,10 @@ service cloud.firestore {
       allow read: if true;
       allow create: if (isAdmin() || isBusinessPartner()) && request.resource.data.sellerId == request.auth.uid && isValidProduct(request.resource.data);
       allow update, delete: if isAdmin() || (isBusinessPartner() && resource.data.sellerId == request.auth.uid && request.resource.data.sellerId == resource.data.sellerId && isValidProduct(request.resource.data));
+    }
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

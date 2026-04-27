@@ -306,7 +306,7 @@ const Upload: React.FC = () => {
         dislikes: 0,
         category: formData.category || (selectedSubject === 'None' ? '' : selectedSubject),
         tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-        duration: isNaN(videoDuration) ? 0 : videoDuration,
+        duration: isNaN(videoDuration) ? 0 : Math.round(videoDuration),
         createdAt: serverTimestamp()
       });
 

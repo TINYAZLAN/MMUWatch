@@ -22,6 +22,8 @@ const Explore: React.FC = () => {
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [selectedBuzz, setSelectedBuzz] = useState<BuzzNews | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingBuzz, setEditingBuzz] = useState<BuzzNews | null>(null);
   
   const [newEvent, setNewEvent] = useState({
@@ -300,32 +302,32 @@ const Explore: React.FC = () => {
             
             {/* 1 Large Featured Event */}
             {events.length > 0 && (
-              <Link to={`/upload?tags=${events[0].keyword}`} className="block group relative rounded-3xl overflow-hidden shadow-lg border border-border">
+              <div onClick={() => setSelectedEvent(events[0])} className="block group relative rounded-3xl overflow-hidden shadow-lg border border-border cursor-pointer">
                 <img src={events[0].imageURL || `https://picsum.photos/seed/${events[0].id}/800/400`} alt={events[0].title} className="w-full h-64 md:h-80 object-cover group-hover:scale-105 transition-transform duration-500" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-6 md:p-8 text-white">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="bg-primary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Featured</span>
-                    <span className="text-sm font-medium text-white/80">{events[0].date}</span>
+                    <span className="text-sm font-medium text-white/80">{events[0].date || events[0].deadline}</span>
                   </div>
                   <h3 className="text-2xl md:text-3xl font-black mb-2">{events[0].title}</h3>
                   <p className="text-white/80 line-clamp-2 max-w-2xl">{events[0].description}</p>
                 </div>
                 {isAdmin && (
                   <button 
-                    onClick={(e) => { e.preventDefault(); handleDeleteEvent(events[0].id); }}
-                    className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteEvent(events[0].id); }}
+                    className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors z-10"
                   >
                     <X size={16} />
                   </button>
                 )}
-              </Link>
+              </div>
             )}
             
             {/* 3 Smaller Events */}
             {events.length > 1 && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {events.slice(1, 4).map(event => (
-                  <Link key={event.id} to={`/upload?tags=${event.keyword}`} className="group bg-card rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all relative">
+                  <div key={event.id} onClick={() => setSelectedEvent(event)} className="group bg-card rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all relative cursor-pointer">
                     <div className="aspect-video relative overflow-hidden bg-muted">
                       <img src={event.imageURL || `https://picsum.photos/seed/${event.id}/400/200`} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     </div>
@@ -335,13 +337,13 @@ const Explore: React.FC = () => {
                     </div>
                     {isAdmin && (
                       <button 
-                        onClick={(e) => { e.preventDefault(); handleDeleteEvent(event.id); }}
-                        className="absolute top-2 right-2 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                        className="absolute top-2 right-2 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors z-10"
                       >
                         <X size={14} />
                       </button>
                     )}
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -389,7 +391,7 @@ const Explore: React.FC = () => {
             </div>
             <div className="flex overflow-x-auto gap-6 pb-4 snap-x hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
                {products.map(product => (
-                 <div key={product.id} className="min-w-[240px] snap-start bg-card border border-border rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/20 transition-all group relative">
+                 <div key={product.id} onClick={() => setSelectedProduct(product)} className="min-w-[240px] snap-start bg-card border border-border rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/20 transition-all group relative cursor-pointer">
                    <div className="relative h-48 bg-muted">
                      <img src={product.imageURL || `https://picsum.photos/seed/${product.id}/400/400`} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                      <div className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
@@ -405,8 +407,8 @@ const Explore: React.FC = () => {
                    </div>
                    {isAdmin && (
                      <button 
-                       onClick={() => handleDeleteProduct(product.id)}
-                       className="absolute top-3 right-3 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-sm"
+                       onClick={(e) => { e.stopPropagation(); handleDeleteProduct(product.id) }}
+                       className="absolute top-3 right-3 bg-red-500/90 text-white p-1.5 rounded-full hover:bg-red-600 transition-colors shadow-sm z-10"
                      >
                        <X size={14} />
                      </button>
@@ -508,11 +510,12 @@ const Explore: React.FC = () => {
             </h2>
             <div className="space-y-4">
               {topCreators.map((creator, index) => (
-                <div 
+                <Link 
+                  to={`/profile/${creator.uid}`}
                   key={creator.uid} 
-                  className={`flex items-center gap-4 p-4 rounded-2xl transition-all ${
-                    index === 0 ? 'bg-yellow-500/10 border border-yellow-500/20 shadow-sm' : 
-                    index < 3 ? 'bg-muted/50' : 'hover:bg-muted'
+                  className={`flex items-center gap-4 p-4 rounded-2xl transition-all cursor-pointer ${
+                    index === 0 ? 'bg-yellow-500/10 border border-yellow-500/20 shadow-sm hover:border-yellow-500/40 hover:bg-yellow-500/20' : 
+                    index < 3 ? 'bg-muted/50 hover:bg-muted' : 'hover:bg-muted'
                   }`}
                 >
                   <div className={`font-black text-xl w-8 text-center ${
@@ -527,7 +530,7 @@ const Explore: React.FC = () => {
                     <h4 className="font-bold truncate text-base">{creator.username || creator.displayName || 'Anonymous'}</h4>
                     <p className="text-sm text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
@@ -773,6 +776,74 @@ const Explore: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Event Details Modal */}
+      {selectedEvent && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-lg rounded-3xl p-8 border border-border shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setSelectedEvent(null)}
+              className="absolute top-6 right-6 text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-3xl font-black mb-4">{selectedEvent.title}</h2>
+            {selectedEvent.imageURL && (
+              <img src={selectedEvent.imageURL} alt={selectedEvent.title} className="w-full h-48 object-cover rounded-2xl mb-6" />
+            )}
+            <div className="space-y-4 text-sm mb-8">
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Organizer</span>
+                <span className="font-semibold text-right">{selectedEvent.organizer}</span>
+              </div>
+              <div className="flex justify-between border-b border-border pb-2">
+                <span className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Date</span>
+                <span className="font-semibold text-right">{selectedEvent.date || selectedEvent.deadline}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                 <span className="text-muted-foreground font-bold uppercase tracking-widest text-xs">Prize</span>
+                 <span className="font-bold text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-full">{selectedEvent.prize || selectedEvent.reward}</span>
+              </div>
+              <p className="text-muted-foreground leading-relaxed pt-2">{selectedEvent.description}</p>
+            </div>
+            
+            <Link 
+              to={`/upload?tags=${selectedEvent.keyword}`} 
+              className="w-full block text-center bg-primary text-primary-foreground py-4 rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              Upload video
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Product Details Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-lg rounded-3xl p-8 border border-border shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-6 right-6 text-muted-foreground hover:text-foreground p-2 rounded-full hover:bg-muted"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-3xl font-black mb-4">{selectedProduct.name}</h2>
+            {selectedProduct.imageURL && (
+              <img src={selectedProduct.imageURL} alt={selectedProduct.name} className="w-full h-64 object-cover rounded-2xl mb-6" />
+            )}
+            <div className="flex items-center justify-between mb-6">
+               <span className="text-4xl font-black text-primary">RM {selectedProduct.price}</span>
+               <div className="bg-muted px-4 py-2 rounded-full font-bold text-sm tracking-wider flex items-center gap-2">
+                 <MapPin size={16} /> {selectedProduct.campus}
+               </div>
+            </div>
+            <p className="text-muted-foreground leading-relaxed pt-2">{selectedProduct.description || "Grab yours today before it sells out!"}</p>
+            <div className="mt-8">
+               <button onClick={() => setSelectedProduct(null)} className="w-full bg-muted text-foreground py-4 rounded-xl font-bold hover:bg-muted/80 transition-colors">Close</button>
+            </div>
           </div>
         </div>
       )}

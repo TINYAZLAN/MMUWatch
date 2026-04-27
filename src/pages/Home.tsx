@@ -1,27 +1,60 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, where, onSnapshot, startAfter, QueryDocumentSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, onSnapshot, startAfter, QueryDocumentSnapshot, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2 } from 'lucide-react';
+import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2, Edit3, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
 import { MMUText } from '../components/MMUText';
+import { toast } from 'sonner';
 
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
+interface FeaturedSettings {
+  title: string;
+  description: string;
+  buttonLink: string;
+  backgroundUrl: string;
+}
+
+const defaultFeatured: FeaturedSettings = {
+  title: "SHAPE THE FUTURE AT MMU",
+  description: "Experience the digital revolution. Watch how our students are building the next generation of technology and creative media.",
+  buttonLink: "", // We can use videos[0]?.id as fallback if this is empty
+  backgroundUrl: "https://picsum.photos/seed/mmu-hero/1920/1080"
+};
+
 const Home: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
+  
   const [videos, setVideos] = useState<VideoMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  
+  const [featuredSettings, setFeaturedSettings] = useState<FeaturedSettings>(defaultFeatured);
+  const [isEditingFeatured, setIsEditingFeatured] = useState(false);
+  const [editFeaturedForm, setEditFeaturedForm] = useState<FeaturedSettings>(defaultFeatured);
 
   const categories = ["All", "Campus Life", "Lectures", "Events", "Projects", "Tutorials", "Student Stories", "Alumni", "STyLE", "Concerts"];
+
+  useEffect(() => {
+    // Fetch featured settings
+    const featuredRef = doc(db, 'settings', 'featured');
+    const unsubFeatured = onSnapshot(featuredRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setFeaturedSettings(docSnap.data() as FeaturedSettings);
+      }
+    });
+
+    return () => unsubFeatured();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -87,17 +120,86 @@ const Home: React.FC = () => {
     }
   };
 
+  const handleSaveFeatured = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    try {
+      await setDoc(doc(db, 'settings', 'featured'), editFeaturedForm);
+      setIsEditingFeatured(false);
+      toast.success('Featured section updated!');
+    } catch (error) {
+      console.error('Error saving featured settings', error);
+      toast.error('Failed to save settings');
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20">
+      <AnimatePresence>
+        {isEditingFeatured && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card w-full max-w-lg rounded-3xl p-6 border border-border shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Edit Featured Section</h3>
+                <button onClick={() => setIsEditingFeatured(false)} className="p-2 hover:bg-muted rounded-full">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveFeatured} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Title</label>
+                  <input type="text" required value={editFeaturedForm.title} onChange={e => setEditFeaturedForm({...editFeaturedForm, title: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea required value={editFeaturedForm.description} onChange={e => setEditFeaturedForm({...editFeaturedForm, description: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2 min-h-[100px]" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Background Image/Video URL</label>
+                  <input type="url" required value={editFeaturedForm.backgroundUrl} onChange={e => setEditFeaturedForm({...editFeaturedForm, backgroundUrl: e.target.value})} className="w-full bg-muted border border-border rounded-xl px-4 py-2" />
+                  <p className="text-xs text-muted-foreground mt-1">Accepts images (jpg, png) or videos (mp4).</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Button Link / Video ID</label>
+                  <input type="text" value={editFeaturedForm.buttonLink} onChange={e => setEditFeaturedForm({...editFeaturedForm, buttonLink: e.target.value})} placeholder="e.g., /watch/video123 or just Video ID" className="w-full bg-muted border border-border rounded-xl px-4 py-2" />
+                  <p className="text-xs text-muted-foreground mt-1">Leave empty to use the latest video.</p>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button type="button" onClick={() => setIsEditingFeatured(false)} className="px-4 py-2 text-sm font-bold hover:bg-muted rounded-full">Cancel</button>
+                  <button type="submit" className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-full">Save Changes</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Hero Section */}
       <section className="relative h-[400px] rounded-3xl overflow-hidden group shadow-2xl">
-        <img referrerPolicy="no-referrer"   
-          src="https://picsum.photos/seed/mmu-hero/1920/1080" 
-          alt="MMU Hero" 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-          
-        />
+        {featuredSettings.backgroundUrl.endsWith('.mp4') || featuredSettings.backgroundUrl.endsWith('.webm') ? (
+          <video autoPlay loop muted playsInline src={featuredSettings.backgroundUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+        ) : (
+          <img referrerPolicy="no-referrer"   
+            src={featuredSettings.backgroundUrl} 
+            alt="MMU Hero" 
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent flex flex-col justify-end p-8 md:p-12">
+          {isAdmin && (
+            <button 
+              onClick={() => { setEditFeaturedForm(featuredSettings); setIsEditingFeatured(true); }}
+              className="absolute top-4 right-4 bg-black/60 hover:bg-primary backdrop-blur-sm text-white p-2 rounded-full transition-colors z-20"
+              title="Edit Featured Area"
+            >
+              <Edit3 size={18} />
+            </button>
+          )}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -108,15 +210,18 @@ const Home: React.FC = () => {
               <TrendingUp size={16} />
               <MMUText text="Featured at MMU" />
             </div>
-            <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-none text-white">
-              <MMUText text="SHAPE THE FUTURE AT MMU" />
+            <h1 className="text-4xl md:text-6xl font-black tracking-tighter leading-none text-white drop-shadow-lg">
+              <MMUText text={featuredSettings.title} />
             </h1>
-            <p className="text-lg text-white/80 line-clamp-2 max-w-xl">
-              Experience the digital revolution. Watch how our students are building the next generation of technology and creative media.
+            <p className="text-lg text-white/90 drop-shadow-md line-clamp-2 max-w-xl font-medium">
+              {featuredSettings.description}
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
-              {videos.length > 0 && (
-                <Link to={`/watch/${videos[0].id}`} className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition-all scale-100 hover:scale-105 active:scale-95">
+              {(featuredSettings.buttonLink || videos.length > 0) && (
+                <Link 
+                  to={featuredSettings.buttonLink.startsWith('/') ? featuredSettings.buttonLink : (featuredSettings.buttonLink ? `/watch/${featuredSettings.buttonLink}` : `/watch/${videos[0]?.id}`)} 
+                  className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-gray-200 transition-all scale-100 hover:scale-105 active:scale-95"
+                >
                   <Play size={20} fill="black" />
                   Watch Now
                 </Link>

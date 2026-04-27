@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, limit, getDocs, updateDoc, increment, addDoc, orderBy, where, serverTimestamp, arrayUnion, arrayRemove, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, limit, getDocs, updateDoc, increment, addDoc, orderBy, where, serverTimestamp, arrayUnion, arrayRemove, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { VideoMetadata, Comment } from '../types';
 import videojs from 'video.js';
@@ -361,11 +361,31 @@ const Watch: React.FC = () => {
         // Increment views once
         if (!hasIncrementedViews.current) {
           hasIncrementedViews.current = true;
-          try {
-            await updateDoc(docRef, { views: increment(1) });
-          } catch (e) {
-            console.warn("Could not increment views", e);
-          }
+          
+          const incrementViewCount = async () => {
+            try {
+              if (user) {
+                const viewerDocRef = doc(db, 'videos', routeVideoId, 'viewers', user.uid);
+                const viewerDoc = await getDoc(viewerDocRef);
+                if (!viewerDoc.exists()) {
+                  await setDoc(viewerDocRef, { viewedAt: serverTimestamp() });
+                  await updateDoc(docRef, { views: increment(1) });
+                }
+              } else {
+                // Anonymous user, check localStorage
+                const viewedVideos = JSON.parse(localStorage.getItem('viewedVideos') || '[]');
+                if (!viewedVideos.includes(routeVideoId)) {
+                  viewedVideos.push(routeVideoId);
+                  localStorage.setItem('viewedVideos', JSON.stringify(viewedVideos));
+                  await updateDoc(docRef, { views: increment(1) });
+                }
+              }
+            } catch (e) {
+              console.warn("Could not increment views", e);
+            }
+          };
+
+          incrementViewCount();
           
           // Fetch recommendations
           try {
