@@ -171,7 +171,7 @@ const Search: React.FC = () => {
     let loadedCount = 0;
 
     collectionsToFetch.forEach(col => {
-      let q = query(collection(db, col.name), limit(50));
+      const q = query(collection(db, col.name), limit(50));
 
       const unsub = onSnapshot(q, (snapshot) => {
         const colData = snapshot.docs.map(doc => {
