@@ -58,7 +58,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, className }) => {
   };
 
   let thumbSrc = video.thumbnailURL || `https://picsum.photos/seed/${video.id}/1280/720`;
-  if (thumbSrc && (thumbSrc.startsWith('https://pub-your-domain.r2.dev/') || thumbSrc.startsWith('https://bd0262d2d19a6073af4681161582d9dc.r2.cloudflarestorage.com/video/'))) {
+  if (thumbSrc && (thumbSrc.includes('r2.dev') || thumbSrc.includes('r2.cloudflarestorage.com'))) {
       const key = thumbSrc.split('/').pop();
       thumbSrc = `/api/video/${key}`;
   }

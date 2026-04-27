@@ -55,7 +55,7 @@ const Watch: React.FC = () => {
   
   // Intercept dummy or direct S3 domains and route them to our proxy
   if (videoSrc) {
-    if (videoSrc.startsWith('https://pub-your-domain.r2.dev/') || videoSrc.startsWith('https://bd0262d2d19a6073af4681161582d9dc.r2.cloudflarestorage.com/video/')) {
+    if (videoSrc.includes('r2.dev') || videoSrc.includes('r2.cloudflarestorage.com')) {
         const key = videoSrc.split('/').pop();
         videoSrc = `/api/video/${key}`;
     }
