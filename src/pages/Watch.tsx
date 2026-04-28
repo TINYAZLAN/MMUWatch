@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, collection, query, limit, getDocs, updateDoc, increment, addDoc, orderBy, where, serverTimestamp, arrayUnion, arrayRemove, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { VideoMetadata, Comment } from '../types';
-import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2, AlertCircle, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
@@ -28,6 +28,7 @@ const Watch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isEnded, setIsEnded] = useState(false);
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
@@ -50,6 +51,13 @@ const Watch: React.FC = () => {
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
 
   let videoSrc = video?.videoURL || (video as any)?.url;
+  
+  const isYouTube = videoSrc?.includes('youtube.com') || videoSrc?.includes('youtu.be');
+  let youtubeId = '';
+  if (isYouTube) {
+    const match = videoSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+    youtubeId = match ? match[1] : '';
+  }
   
   // Intercept dummy or direct S3 domains and route them to our proxy
   if (videoSrc) {
@@ -432,6 +440,7 @@ const Watch: React.FC = () => {
   }, [routeVideoId]);
 
   useEffect(() => {
+    if (isYouTube) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
         return;
@@ -559,15 +568,23 @@ const Watch: React.FC = () => {
         <div className="lg:col-span-10">
           <div className="bg-black rounded-3xl overflow-hidden shadow-2xl border border-border aspect-video relative group">
             {videoSrc ? (
+              isYouTube ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  title="YouTube video player"
+                />
+              ) : (
               <>
                 <video 
                   ref={videoPlayerRef}
                   src={videoSrc} 
                   controls 
                   playsInline
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onEnded={() => setIsPlaying(false)}
+                  onPlay={() => { setIsPlaying(true); setIsEnded(false); }}
+                  onPause={() => { setIsPlaying(false); setIsEnded(videoPlayerRef.current?.ended || false); }}
+                  onEnded={() => { setIsPlaying(false); setIsEnded(true); }}
                   className="w-full h-full object-contain"
                   poster={posterSrc || undefined}
                 />
@@ -581,11 +598,16 @@ const Watch: React.FC = () => {
                     className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 hover:bg-black/20 transition-all w-full h-full cursor-pointer z-10"
                   >
                     <div className="w-24 h-24 bg-primary/90 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl shadow-primary/50 transform transition-transform hover:scale-110">
-                      <Play fill="currentColor" className="w-12 h-12 text-primary-foreground ml-2" />
+                      {isEnded ? (
+                        <RotateCcw className="w-12 h-12 text-primary-foreground" />
+                      ) : (
+                        <Play fill="currentColor" className="w-12 h-12 text-primary-foreground ml-2" />
+                      )}
                     </div>
                   </button>
                 )}
               </>
+              )
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20">
                 <AlertCircle size={48} className="text-muted-foreground mb-4 opacity-50" />

@@ -99,6 +99,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
 
   return (
     <motion.div 
+      id={`post-${post.id}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-[#0f1115] border border-white/5 rounded-[2rem] p-5 sm:p-6 shadow-2xl relative overflow-hidden group transition-all duration-300 hover:border-white/10"
@@ -192,7 +193,22 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
           <span>{post.stats?.comments || post.comments || 0}</span>
         </button>
 
-        <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors group/btn ml-auto">
+        <button 
+          onClick={() => {
+            const shareUrl = `${window.location.origin}/community?post=${post.id}`;
+            if (navigator.share) {
+              navigator.share({
+                title: post.title || 'Community Post',
+                text: 'Check out this post on Devtube!',
+                url: shareUrl,
+              }).catch(console.error);
+            } else {
+              navigator.clipboard.writeText(shareUrl);
+              toast.success("Link copied to clipboard!");
+            }
+          }}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors group/btn ml-auto"
+        >
           <div className="p-2 rounded-full bg-white/5 group-hover/btn:bg-green-500/20 group-hover/btn:text-green-400 transition-colors">
             <Share2 size={18} />
           </div>

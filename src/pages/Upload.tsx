@@ -14,6 +14,13 @@ import { fetchFile } from '@ffmpeg/util';
 
 import { FACULTIES, SUBJECTS_BY_FACULTY, ASSIGNMENTS_BY_SUBJECT } from '../constants';
 
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
+
 const ffmpeg = new FFmpeg();
 
 const Upload: React.FC = () => {
@@ -30,6 +37,8 @@ const Upload: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [videoObjectUrl, setVideoObjectUrl] = useState<string | null>(null);
   const [thumbTime, setThumbTime] = useState<number>(0);
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'youtube'>('file');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   
   const [formData, setFormData] = useState({
     title: '',
@@ -70,6 +79,69 @@ const Upload: React.FC = () => {
       }
     };
   }, [videoObjectUrl]);
+
+  React.useEffect(() => {
+    if (uploadMethod === 'youtube' && youtubeUrl) {
+      const match = youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+      const videoId = match?.[1];
+      if (videoId) {
+        if (!window.YT) {
+          const tag = document.createElement('script');
+          tag.src = 'https://www.youtube.com/iframe_api';
+          const firstScriptTag = document.getElementsByTagName('script')[0];
+          if (firstScriptTag && firstScriptTag.parentNode) {
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+          } else {
+            document.head.appendChild(tag);
+          }
+        }
+
+        let isMounted = true;
+        
+        let attempts = 0;
+        const tryCreatePlayer = () => {
+          if (!isMounted) return;
+          if (!window.YT || !window.YT.Player) {
+            attempts++;
+            if (attempts < 50) { // Wait up to 5 seconds
+               setTimeout(tryCreatePlayer, 100);
+            }
+            return;
+          }
+          try {
+            const player = new window.YT.Player('youtube-hidden-player', {
+              videoId,
+              events: {
+                'onReady': (event: any) => {
+                  if (isMounted) {
+                    const dur = event.target.getDuration();
+                    if (dur && !isNaN(dur)) {
+                      setVideoDuration(dur);
+                    }
+                  }
+                },
+                'onStateChange': (event: any) => {
+                  if (isMounted) {
+                    const dur = event.target.getDuration();
+                    if (dur && !isNaN(dur)) {
+                      setVideoDuration(dur);
+                    }
+                  }
+                }
+              }
+            });
+          } catch (e) {
+            console.error("Error creating YT Player", e);
+          }
+        };
+        tryCreatePlayer();
+
+        return () => {
+          isMounted = false;
+        };
+      }
+    }
+  }, [uploadMethod, youtubeUrl]);
 
   const handleSeekThumbnail = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
@@ -187,7 +259,9 @@ const Upload: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !fileObj) return;
+    if (!user) return;
+    if (uploadMethod === 'file' && !fileObj) return;
+    if (uploadMethod === 'youtube' && !youtubeUrl) return;
 
     // Validation
     if (formData.title.trim().length < 5) {
@@ -205,34 +279,15 @@ const Upload: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      let videoURL = '';
+      let sourceType = '';
+      let finalThumbnail = `https://picsum.photos/seed/${Date.now()}/1280/720`;
       let uploadFile = fileObj;
-      const needsTranscoding = uploadFile.name.match(/\.(mkv|avi|wmv|flv)$/i);
-
-      if (needsTranscoding) {
-        setUploadEta("Converting to MP4 format with FFmpeg...");
-        if (!ffmpeg.loaded) {
-          await ffmpeg.load({
-            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
-            wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm'
-          });
-        }
-        
-        ffmpeg.on('progress', ({ progress }) => {
-          // Progress from 0 to 50
-          setUploadProgress(Math.round(progress * 50));
-        });
-        
-        await ffmpeg.writeFile('input', await fetchFile(uploadFile));
-        await ffmpeg.exec(['-i', 'input', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
-        const data = await ffmpeg.readFile('output.mp4');
-        const mp4Blob = new Blob([data as Uint8Array], { type: 'video/mp4' });
-        uploadFile = new File([mp4Blob], uploadFile.name.replace(/\.[^/.]+$/, ".mp4"), { type: 'video/mp4' });
-        
-        ffmpeg.off('progress', () => {});
+      let needsTranscoding = false;
+      if (uploadMethod === 'file' && uploadFile) {
+        needsTranscoding = !!uploadFile.name.match(/\.(mkv|avi|wmv|flv)$/i);
       }
 
-      setUploadEta("Uploading to Cloudflare R2...");
-      
       const uploadToCloudflare = async (file: File): Promise<string> => {
         const res = await fetch("/api/signed-url", {
           method: "POST",
@@ -285,16 +340,48 @@ const Upload: React.FC = () => {
         });
       };
 
-      const videoURL = await uploadToCloudflare(uploadFile);
+      if (uploadMethod === 'file' && uploadFile) {
+        if (needsTranscoding) {
+          setUploadEta("Converting to MP4 format with FFmpeg...");
+          if (!ffmpeg.loaded) {
+            await ffmpeg.load({
+              coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
+              wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm'
+            });
+          }
+          
+          ffmpeg.on('progress', ({ progress }) => {
+            setUploadProgress(Math.round(progress * 50));
+          });
+          
+          await ffmpeg.writeFile('input', await fetchFile(uploadFile));
+          await ffmpeg.exec(['-i', 'input', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', 'output.mp4']);
+          const data = await ffmpeg.readFile('output.mp4');
+          const mp4Blob = new Blob([data as Uint8Array], { type: 'video/mp4' });
+          uploadFile = new File([mp4Blob], uploadFile.name.replace(/\.[^/.]+$/, ".mp4"), { type: 'video/mp4' });
+          
+          ffmpeg.off('progress', () => {});
+        }
 
-      let finalThumbnail = `https://picsum.photos/seed/${Date.now()}/1280/720`;
-      
+        setUploadEta("Uploading to Cloudflare R2...");
+        videoURL = await uploadToCloudflare(uploadFile);
+        sourceType = 'r2';
+      } else if (uploadMethod === 'youtube') {
+        videoURL = youtubeUrl;
+        sourceType = 'youtube';
+      }
+
       const thumbFileToUpload = thumbnailFile || autoThumbnailFile;
       if (thumbFileToUpload) {
         setUploadEta("Uploading thumbnail...");
         finalThumbnail = await uploadToCloudflare(thumbFileToUpload);
       } else if (thumbnailPreview) {
         finalThumbnail = thumbnailPreview;
+      } else if (uploadMethod === 'youtube') {
+        const match = youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+        if (match && match[1]) {
+          finalThumbnail = `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
+        }
       }
 
       const docRef = await addDoc(collection(db, 'videos'), {
@@ -302,6 +389,7 @@ const Upload: React.FC = () => {
         description: formData.description,
         thumbnailURL: finalThumbnail,
         videoURL: videoURL,
+        sourceType: sourceType,
         creatorId: user.uid,
         creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
         creatorFaculty: userFaculty,
@@ -349,6 +437,7 @@ const Upload: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto py-8">
+      <div id="youtube-hidden-player" style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}></div>
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <div className="bg-[#E31837] p-2 rounded-xl">
@@ -358,39 +447,83 @@ const Upload: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setUploadMethod('file')}
+          className={`px-6 py-2 rounded-full font-bold transition-all ${
+            uploadMethod === 'file' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          Upload Video File
+        </button>
+        <button
+          onClick={() => setUploadMethod('youtube')}
+          className={`px-6 py-2 rounded-full font-bold transition-all ${
+            uploadMethod === 'youtube' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          Import from YouTube
+        </button>
+      </div>
+
       <div className={cn("grid grid-cols-1 gap-8", isStaff ? "lg:grid-cols-1 max-w-3xl mx-auto" : "lg:grid-cols-3")}>
         {/* Left: Upload Form */}
         <div className={cn("bg-card p-8 rounded-3xl border border-border shadow-2xl", !isStaff && "lg:col-span-2")}>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* File Dropzone */}
-            <div className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-primary transition-colors relative cursor-pointer bg-muted/30">
-              <input 
-                type="file" 
-                accept="video/*" 
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                required
-              />
-              <div className="flex flex-col items-center gap-4 pointer-events-none">
-                <FileVideo size={48} className={fileName ? "text-primary" : "text-muted-foreground/40"} />
-                {fileName ? (
-                  <div className="space-y-1">
-                    <p className="font-bold text-lg text-foreground">{fileName}</p>
-                    <p className="text-sm text-green-500 font-medium flex items-center justify-center gap-1">
-                      <CheckCircle2 size={16} /> File selected ({(fileObj?.size || 0) / (1024 * 1024) < 1 ? `${((fileObj?.size || 0) / 1024).toFixed(1)} KB` : `${((fileObj?.size || 0) / (1024 * 1024)).toFixed(1)} MB`})
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="font-bold text-lg text-foreground">Drag and drop video files to upload</p>
-                    <p className="text-sm text-muted-foreground">Max file size: 50MB. Your videos will be private until you publish them.</p>
+            {uploadMethod === 'file' ? (
+              <div className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-primary transition-colors relative cursor-pointer bg-muted/30">
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  required
+                />
+                <div className="flex flex-col items-center gap-4 pointer-events-none">
+                  <FileVideo size={48} className={fileName ? "text-primary" : "text-muted-foreground/40"} />
+                  {fileName ? (
+                    <div className="space-y-1">
+                      <p className="font-bold text-lg text-foreground">{fileName}</p>
+                      <p className="text-sm text-green-500 font-medium flex items-center justify-center gap-1">
+                        <CheckCircle2 size={16} /> File selected ({(fileObj?.size || 0) / (1024 * 1024) < 1 ? `${((fileObj?.size || 0) / 1024).toFixed(1)} KB` : `${((fileObj?.size || 0) / (1024 * 1024)).toFixed(1)} MB`})
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="font-bold text-lg text-foreground">Drag and drop video files to upload</p>
+                      <p className="text-sm text-muted-foreground">Max file size: 50MB. Your videos will be private until you publish them.</p>
+                    </div>
+                  )}
+                  <button type="button" className="bg-primary text-white px-6 py-2 rounded-full font-bold mt-2">
+                    Select File
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">YouTube URL (required)</label>
+                  <input 
+                    type="url" 
+                    required
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary transition-all text-foreground"
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                </div>
+                {youtubeUrl && (
+                  <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1] || ''}`}
+                      className="w-full h-full"
+                      allowFullScreen
+                      title="YouTube Preview"
+                    />
                   </div>
                 )}
-                <button type="button" className="bg-primary text-white px-6 py-2 rounded-full font-bold mt-2">
-                  Select File
-                </button>
               </div>
-            </div>
+            )}
 
               <div className="space-y-4">
                 <div className="space-y-1">
@@ -487,17 +620,6 @@ const Upload: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Duration (seconds)</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={videoDuration}
-                    onChange={(e) => setVideoDuration(Number(e.target.value) || 0)}
-                    className="w-full bg-muted border border-border rounded-xl py-3 px-4 focus:outline-none focus:border-primary transition-all text-foreground"
-                    placeholder="e.g., 120"
-                  />
-                </div>
               </div>
 
               {isSubmitting && (
@@ -526,7 +648,7 @@ const Upload: React.FC = () => {
               </button>
               <button 
                 type="submit" 
-                disabled={isSubmitting || !fileObj}
+                disabled={isSubmitting || (uploadMethod === 'file' ? !fileObj : !youtubeUrl)}
                 className="bg-primary text-white px-8 py-2 rounded-full font-bold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {isSubmitting ? (

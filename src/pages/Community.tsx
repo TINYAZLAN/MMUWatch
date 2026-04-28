@@ -9,18 +9,36 @@ import { useAuth } from '../AuthProvider';
 import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, where, documentId, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const Community: React.FC = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeItem, setActiveItem] = useState('home');
   const [activeFeed, setActiveFeed] = useState<'latest' | 'trending'>('latest');
   const [postsLimit, setPostsLimit] = useState(10);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   
   const [posts, setPosts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const postId = searchParams.get('post');
+    if (postId && posts.some(p => p.id === postId)) {
+      setTimeout(() => {
+        const el = document.getElementById(`post-${postId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-primary', 'ring-offset-4', 'ring-offset-[#050505]');
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-primary', 'ring-offset-4', 'ring-offset-[#050505]');
+          }, 2000);
+        }
+      }, 500);
+    }
+  }, [posts, location.search]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [latestEvent, setLatestEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
