@@ -42,6 +42,34 @@ const Home: React.FC = () => {
   const [isEditingFeatured, setIsEditingFeatured] = useState(false);
   const [editFeaturedForm, setEditFeaturedForm] = useState<FeaturedSettings>(defaultFeatured);
 
+  const [trendingVideos, setTrendingVideos] = useState<VideoMetadata[]>([]);
+  const [trendingPeriod, setTrendingPeriod] = useState<'all-time' | 'weekly'>('all-time');
+
+  useEffect(() => {
+    const fetchTrending = async () => {
+      try {
+        const q = query(collection(db, 'videos'), orderBy('views', 'desc'), limit(100));
+        const snapshot = await getDocs(q);
+        let vids = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata));
+        
+        if (trendingPeriod === 'weekly') {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          vids = vids.filter(v => {
+            if (!v.createdAt) return false;
+            const d = (v.createdAt as unknown as {toDate: () => Date}).toDate ? (v.createdAt as unknown as {toDate: () => Date}).toDate() : new Date(v.createdAt as string);
+            return d >= oneWeekAgo;
+          });
+        }
+        
+        setTrendingVideos(vids.slice(0, 4));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'videos');
+      }
+    };
+    fetchTrending();
+  }, [trendingPeriod]);
+
   const categories = ["All", "Campus Life", "Lectures", "Events", "Projects", "Tutorials", "Student Stories", "Alumni", "STyLE", "Concerts"];
 
   useEffect(() => {
@@ -51,6 +79,8 @@ const Home: React.FC = () => {
       if (docSnap.exists()) {
         setFeaturedSettings(docSnap.data() as FeaturedSettings);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings');
     });
 
     return () => unsubFeatured();
@@ -85,8 +115,8 @@ const Home: React.FC = () => {
       setHasMore(snapshot.docs.length === 8);
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching videos:", error);
       setLoading(false);
+      handleFirestoreError(error, OperationType.LIST, 'videos');
     });
 
     return () => unsubscribe();
@@ -312,9 +342,31 @@ const Home: React.FC = () => {
             <PlaySquare className="text-primary" />
             <MMUText text="Trending at MMU" />
           </h2>
+          {isAdmin && (
+            <div className="flex bg-muted rounded-full p-1 border border-border">
+              <button 
+                onClick={() => setTrendingPeriod('all-time')}
+                className={cn(
+                  "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
+                  trendingPeriod === 'all-time' ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All Time
+              </button>
+              <button 
+                onClick={() => setTrendingPeriod('weekly')}
+                className={cn(
+                  "px-4 py-1.5 text-xs font-bold rounded-full transition-colors",
+                  trendingPeriod === 'weekly' ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Weekly
+              </button>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {videos.slice(0, 4).map((video, i) => (
+          {trendingVideos.map((video, i) => (
             <Link to={`/watch/${video.id}`} key={video.id} className="flex gap-4 group cursor-pointer hover:bg-muted p-2 rounded-xl transition-colors">
               <span className="text-4xl font-black text-muted-foreground/20 group-hover:text-primary transition-colors">0{i + 1}</span>
               <div className="flex-1 min-w-0">
@@ -325,7 +377,7 @@ const Home: React.FC = () => {
               </div>
             </Link>
           ))}
-          {videos.length === 0 && (
+          {trendingVideos.length === 0 && (
             <div className="col-span-full text-center py-4 text-muted-foreground text-sm">
               No trending videos yet.
             </div>

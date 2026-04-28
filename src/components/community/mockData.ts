@@ -1,6 +1,6 @@
 import { Home, Users, Calendar, TrendingUp } from 'lucide-react';
 
-export const NAVIGATION_ITEMS = [
+export const NAVIGATION_ITEMS: { icon: any; label: string; id: string; badge?: string }[] = [
   { icon: Home, label: 'Home', id: 'home' },
   { icon: Users, label: 'Clubs', id: 'clubs' },
   { icon: Calendar, label: 'All Events', id: 'events' },

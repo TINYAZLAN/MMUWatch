@@ -129,11 +129,15 @@ const Upload: React.FC = () => {
       const videoElement = document.createElement('video');
       videoElement.preload = 'metadata';
       videoElement.onloadedmetadata = () => {
-        if (!isNaN(videoElement.duration) && videoElement.duration !== Infinity) {
+        if (!isNaN(videoElement.duration) && videoElement.duration !== Infinity && videoElement.duration < 14400) {
           setVideoDuration(videoElement.duration);
           const midTime = videoElement.duration > 2 ? videoElement.duration / 2 : 0;
           setThumbTime(midTime);
           videoElement.currentTime = midTime;
+        } else {
+           // Skip bad durations
+           setVideoDuration(0);
+           videoElement.currentTime = 0;
         }
       };
       videoElement.onseeked = () => {

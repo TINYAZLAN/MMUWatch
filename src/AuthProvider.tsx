@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
 import { toast } from 'sonner';
@@ -83,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false);
           setIsAuthReady(true);
         }, (error) => {
-          console.error("Profile listener error:", error);
+          handleFirestoreError(error, OperationType.GET, 'users');
           setLoading(false);
           setIsAuthReady(true);
         });

@@ -66,26 +66,16 @@ const Explore: React.FC = () => {
         setTopVideos(videoData);
       }
     }, (error) => {
-      console.error("Error fetching top videos:", error);
+      handleFirestoreError(error, OperationType.LIST, 'videos');
     });
 
     // Real-time Top Creators
     const creatorsQ = query(collection(db, 'users'), orderBy('followerCount', 'desc'), limit(5));
     const unsubscribeCreators = onSnapshot(creatorsQ, (snapshot) => {
       const creatorsData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      if (creatorsData.length === 0) {
-        setTopCreators([
-          { uid: 'u1', username: 'MMU Official', displayName: 'MMU Official', followerCount: 15400, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mmu', email: '', role: 'admin', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
-          { uid: 'u2', username: 'Tech Ninja', displayName: 'Tech Ninja', followerCount: 8200, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ninja', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
-          { uid: 'u3', username: 'Campus Vlogger', displayName: 'Campus Vlogger', followerCount: 5100, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=vlog', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
-          { uid: 'u4', username: 'Study Guru', displayName: 'Study Guru', followerCount: 3400, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=guru', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 },
-          { uid: 'u5', username: 'FCI Updates', displayName: 'FCI Updates', followerCount: 2900, photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fci', email: '', role: 'viewer', createdAt: '', following: [], followers: [], likedVideos: [], likedComments: [], joinedClubs: [], subjects: [], awards: 0 }
-        ]);
-      } else {
-        setTopCreators(creatorsData);
-      }
+      setTopCreators(creatorsData);
     }, (error) => {
-      console.error("Error fetching top creators:", error);
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     // Real-time Events
@@ -224,6 +214,19 @@ const Explore: React.FC = () => {
     } catch (error) {
       console.error("Error adding product:", error);
       toast.error("Failed to add product");
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!isAdmin) return;
+    const confirmDelete = window.confirm("Are you sure you want to delete this user profile? This action is irreversible.");
+    if (!confirmDelete) return;
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      toast.success("User profile deleted.");
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Error deleting user: " + error.message);
     }
   };
 
@@ -510,27 +513,37 @@ const Explore: React.FC = () => {
             </h2>
             <div className="space-y-4">
               {topCreators.map((creator, index) => (
-                <Link 
-                  to={`/profile/${creator.uid}`}
+                <div 
                   key={creator.uid} 
-                  className={`flex items-center gap-4 p-4 rounded-2xl transition-all cursor-pointer ${
+                  className={`flex items-center gap-4 p-4 rounded-2xl transition-all relative ${
                     index === 0 ? 'bg-yellow-500/10 border border-yellow-500/20 shadow-sm hover:border-yellow-500/40 hover:bg-yellow-500/20' : 
                     index < 3 ? 'bg-muted/50 hover:bg-muted' : 'hover:bg-muted'
                   }`}
                 >
-                  <div className={`font-black text-xl w-8 text-center ${
-                    index === 0 ? 'text-yellow-500 text-3xl' : 
-                    index === 1 ? 'text-slate-400' : 
-                    index === 2 ? 'text-amber-700' : 'text-muted-foreground'
-                  }`}>
-                    {index === 0 ? '👑' : `#${index + 1}`}
-                  </div>
-                  <img src={creator.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.uid}`} alt={creator.username} className="w-14 h-14 rounded-full border-2 border-background shadow-sm object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold truncate text-base">{creator.username || creator.displayName || 'Anonymous'}</h4>
-                    <p className="text-sm text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
-                  </div>
-                </Link>
+                  <Link to={`/profile/${creator.uid}`} className="flex-1 flex items-center gap-4 cursor-pointer">
+                    <div className={`font-black text-xl w-8 text-center ${
+                      index === 0 ? 'text-yellow-500 text-3xl' : 
+                      index === 1 ? 'text-slate-400' : 
+                      index === 2 ? 'text-amber-700' : 'text-muted-foreground'
+                    }`}>
+                      {index === 0 ? '👑' : `#${index + 1}`}
+                    </div>
+                    <img src={creator.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.uid}`} alt={creator.username} className="w-14 h-14 rounded-full border-2 border-background shadow-sm object-cover" />
+                    <div className="min-w-0">
+                      <h4 className="font-bold truncate text-base">{creator.username || creator.displayName || 'Anonymous'}</h4>
+                      <p className="text-sm text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
+                    </div>
+                  </Link>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => handleDeleteUser(creator.uid)}
+                      className="absolute right-4 bg-red-500/90 text-white p-2 rounded-full hover:bg-red-600 transition-colors shadow-sm z-10"
+                      title="Delete User"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </section>

@@ -47,7 +47,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, className }) => {
   };
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return '0:00';
+    if (!seconds || isNaN(seconds) || seconds === 0) return null;
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
@@ -73,9 +73,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, className }) => {
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           
         />
-        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-          {formatDuration(video.duration || 754)}
-        </div>
+        {formatDuration(video.duration) && (
+          <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+            {formatDuration(video.duration)}
+          </div>
+        )}
         <button 
           onClick={handleSave}
           className={cn(

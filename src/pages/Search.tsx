@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, query, where, limit, onSnapshot, orderBy, startAfter, QueryDocumentSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { UnifiedSearchResult, SearchResultType, VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
 import { Search as SearchIcon, Filter, X, Loader2, Compass, Calendar, Users, Play, Tag, ChevronRight, LayoutGrid, List, SlidersHorizontal, Briefcase, GraduationCap, Globe, BookOpen, Cpu, MonitorPlay, Building2 } from 'lucide-react';
@@ -233,6 +234,7 @@ const Search: React.FC = () => {
         }
       }, (error) => {
         console.error(`Error fetching ${col.name}:`, error);
+        handleFirestoreError(error, OperationType.LIST, col.name);
         loadedCount++;
         if (loadedCount >= collectionsToFetch.length) setLoading(false);
       });
@@ -244,6 +246,8 @@ const Search: React.FC = () => {
     const industryQ = query(collection(db, 'videos'), where('tags', 'array-contains', 'Industry'), limit(4));
     const unsubIndustry = onSnapshot(industryQ, (snapshot) => {
       setIndustryVideos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata)));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'videos');
     });
     unsubscribes.push(unsubIndustry);
 

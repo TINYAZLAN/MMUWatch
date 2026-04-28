@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, orderBy, updateDoc, arrayUnion, arrayRemove, addDoc, serverTimestamp, onSnapshot, increment, deleteDoc, writeBatch, collectionGroup } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { db } from '../firebase';
 import { UserProfile as UserProfileType, VideoMetadata } from '../types';
 import { Play, Star, MessageCircle, UserPlus, CheckCircle2, Award, UserMinus, Trash2, MoreVertical, ShieldCheck } from 'lucide-react';
@@ -8,8 +9,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
-
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 const UserProfile: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -131,7 +130,7 @@ const UserProfile: React.FC = () => {
           if (snapshot.exists()) {
             setProfile(snapshot.data() as UserProfileType);
           }
-        });
+        }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
 
         const videosQ = query(collection(db, 'videos'), where('creatorId', '==', userId), orderBy('createdAt', 'desc'));
         const videosSnapshot = await getDocs(videosQ);

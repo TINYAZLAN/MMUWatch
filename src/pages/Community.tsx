@@ -8,6 +8,7 @@ import { MMUText } from '../components/MMUText';
 import { useAuth } from '../AuthProvider';
 import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, where, documentId, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -46,7 +47,7 @@ const Community: React.FC = () => {
       const unsub = onSnapshot(query(collection(db, 'communityClubs'), orderBy('createdAt', 'desc')), snap => {
         setClubs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         setClubsLoading(false);
-      });
+      }, error => handleFirestoreError(error, OperationType.LIST, 'communityClubs'));
       return () => unsub();
     }
   }, [activeItem]);
@@ -58,7 +59,7 @@ const Community: React.FC = () => {
       if (!snapshot.empty) {
         setLatestEvent({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
       }
-    });
+    }, error => handleFirestoreError(error, OperationType.LIST, 'events'));
 
     // Fetch actual friends
     if (profile?.friends && profile.friends.length > 0) {
@@ -71,7 +72,7 @@ const Community: React.FC = () => {
           return {
             id: doc.id,
             name: data.username || data.displayName || 'User',
-            avatar: data.photoURL || `https://ui-avatars.com/api/?name=${data.username || 'User'}&background=random`
+            avatar: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.username || doc.id}`
           };
         }));
       });
@@ -101,7 +102,7 @@ const Community: React.FC = () => {
     const unsubPosts = onSnapshot(q, snapshot => {
       setPosts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
-    });
+    }, error => handleFirestoreError(error, OperationType.LIST, 'communityPosts'));
 
     return () => unsubPosts();
   }, [activeFeed, postsLimit, activeTag, activeItem]);

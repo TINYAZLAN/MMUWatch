@@ -5,6 +5,7 @@ import { useAuth } from '../AuthProvider';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, where, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { cn } from '../lib/utils';
 import { Message } from '../types';
 import { toast } from 'sonner';
@@ -78,6 +79,8 @@ const ChatPopup = () => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse();
       setMessages(msgs);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'messages');
     });
 
     return () => unsubscribe();
@@ -226,6 +229,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
     return () => unsubscribe();
   }, [user]);

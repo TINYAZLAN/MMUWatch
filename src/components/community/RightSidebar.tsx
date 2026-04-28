@@ -4,6 +4,7 @@ import { HOT_TOPICS, SUGGESTED_CLUBS } from './mockData';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useAuth } from '../../AuthProvider';
 import { toast } from 'sonner';
 
@@ -18,6 +19,8 @@ export const RightSidebar: React.FC = () => {
     const unsub = onSnapshot(q, (snapshot) => {
       setUpcomingEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'events');
     });
     return () => unsub();
   }, []);
@@ -40,7 +43,7 @@ export const RightSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="hidden xl:flex w-80 flex-col gap-6 shrink-0 sticky top-24 pb-12 h-fit">
+    <aside className="hidden lg:flex w-64 xl:w-80 flex-col gap-6 shrink-0 sticky top-24 pb-12 h-fit">
       
       {/* Upcoming Events Card */}
       <div className="bg-[#0f1115] border border-white/5 rounded-3xl p-5 shadow-2xl relative overflow-hidden group">

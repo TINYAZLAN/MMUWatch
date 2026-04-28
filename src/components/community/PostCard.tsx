@@ -1,10 +1,13 @@
-import React from 'react';
-import { Heart, MessageCircle, Share2, MoreHorizontal, CheckCircle2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Heart, MessageCircle, Share2, CheckCircle2, Trash2, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
-
 import { Link, useNavigate } from 'react-router-dom';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { useAuth } from '../../AuthProvider';
+import { toast } from 'sonner';
 
 interface PostCardProps {
   post: any;
@@ -15,23 +18,75 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, onTagClick }) => {
   const navigate = useNavigate();
-  const [isUpvoted, setIsUpvoted] = React.useState(post.isUpvoted || false);
-  const [upvotes, setUpvotes] = React.useState(post.upvotes || 0);
+  const { user, profile } = useAuth();
+  const [isUpvoted, setIsUpvoted] = useState(post.isUpvoted || false);
+  const [upvotes, setUpvotes] = useState(post.upvotes || 0);
+  
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleUpvote = () => {
+  useEffect(() => {
+    if (!showComments) return;
+    const q = query(collection(db, 'communityPosts', post.id, 'comments'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, [showComments, post.id]);
+
+  const handleUpvote = async () => {
+    if (!user) return toast.error('You must be logged in to upvote');
+    const postRef = doc(db, 'communityPosts', post.id);
+    
     if (isUpvoted) {
       setUpvotes((prev: number) => prev - 1);
       setIsUpvoted(false);
+      try {
+        await updateDoc(postRef, { upvotes: increment(-1) });
+      } catch (e) {
+        console.error(e);
+      }
     } else {
       setUpvotes((prev: number) => prev + 1);
       setIsUpvoted(true);
+      try {
+        await updateDoc(postRef, { upvotes: increment(1) });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !user) return;
+    
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'communityPosts', post.id, 'comments'), {
+        text: newComment.trim(),
+        userId: user.uid,
+        userName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
+        userPhoto: profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'communityPosts', post.id), {
+        comments: increment(1)
+      });
+      setNewComment('');
+    } catch (e: any) {
+      toast.error('Failed to post comment: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const getAvatar = () => {
     if (post.author?.avatar) return post.author.avatar;
     if (post.creatorAvatar) return post.creatorAvatar;
-    return `https://ui-avatars.com/api/?name=${post.creatorName || 'User'}&background=random`;
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.creatorId || Math.random()}`;
   };
 
   const navigateToProfile = () => {
@@ -79,9 +134,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
               <Trash2 size={16} />
             </button>
           )}
-          <button className="text-muted-foreground hover:text-white p-2 rounded-full hover:bg-white/5 transition-colors">
-            <MoreHorizontal size={18} />
-          </button>
         </div>
       </div>
 
@@ -130,7 +182,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
           <span className={cn(isUpvoted && "font-bold")}>{upvotes}</span>
         </button>
 
-        <button className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors group/btn">
+        <button 
+          onClick={() => setShowComments(!showComments)}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-white transition-colors group/btn"
+        >
           <div className="p-2 rounded-full bg-white/5 group-hover/btn:bg-blue-500/20 group-hover/btn:text-blue-400 transition-colors">
             <MessageCircle size={18} />
           </div>
@@ -143,6 +198,55 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
           </div>
         </button>
       </div>
+
+      <AnimatePresence>
+        {showComments && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4 pt-4 border-t border-white/5 space-y-4"
+          >
+            <form onSubmit={handlePostComment} className="flex gap-3">
+              <input 
+                type="text" 
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                placeholder="Add a comment..."
+                className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
+                disabled={isSubmitting}
+              />
+              <button 
+                type="submit" 
+                disabled={!newComment.trim() || isSubmitting}
+                className="bg-primary/20 text-primary p-2 rounded-full hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send size={18} />
+              </button>
+            </form>
+
+            <div className="space-y-4 mt-4 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
+              {comments.map(comment => (
+                <div key={comment.id} className="flex gap-3">
+                  <img src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`} alt={comment.userName} className="w-8 h-8 rounded-full bg-white/10" />
+                  <div className="flex-1">
+                    <div className="bg-white/5 rounded-2xl rounded-tl-none p-3 relative group">
+                      <p className="text-sm font-bold text-white mb-1">{comment.userName}</p>
+                      <p className="text-sm text-white/80">{comment.text}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 ml-2">
+                       {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate ? comment.createdAt.toDate() : new Date(comment.createdAt)) : 'Just now'} ago
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {comments.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-4">No comments yet. Be the first to comment!</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

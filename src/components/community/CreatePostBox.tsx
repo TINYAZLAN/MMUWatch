@@ -65,7 +65,7 @@ export const CreatePostBox: React.FC = () => {
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         creatorId: user.uid,
         creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
-        creatorAvatar: profile?.avatarUrl || `https://ui-avatars.com/api/?name=${profile?.username || 'User'}&background=random`,
+        creatorAvatar: profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
         createdAt: serverTimestamp(),
         upvotes: 0,
         comments: 0
@@ -93,7 +93,7 @@ export const CreatePostBox: React.FC = () => {
 
       <div className="flex gap-4 relative z-10">
         <img 
-          src={profile?.avatarUrl || `https://ui-avatars.com/api/?name=${profile?.username || 'User'}&background=random`} 
+          src={profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid || 'User'}`} 
           alt="Avatar" 
           className="w-12 h-12 rounded-full object-cover ring-2 ring-transparent bg-muted"
         />

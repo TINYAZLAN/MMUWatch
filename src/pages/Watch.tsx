@@ -3,8 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, collection, query, limit, getDocs, updateDoc, increment, addDoc, orderBy, where, serverTimestamp, arrayUnion, arrayRemove, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { VideoMetadata, Comment } from '../types';
-import videojs from 'video.js';
-import 'video.js/dist/video-js.css';
 import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../AuthProvider';
@@ -29,8 +27,8 @@ const Watch: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
-  const videoRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<any>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoPlayerRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
 
   const toggleReplies = (commentId: string) => {
@@ -58,6 +56,14 @@ const Watch: React.FC = () => {
     if (videoSrc.includes('r2.dev') || videoSrc.includes('r2.cloudflarestorage.com')) {
         const key = videoSrc.split('/').pop();
         videoSrc = `/api/video/${key}`;
+    }
+  }
+
+  let posterSrc = video?.thumbnailURL;
+  if (posterSrc) {
+    if (posterSrc.includes('r2.dev') || posterSrc.includes('r2.cloudflarestorage.com')) {
+        const key = posterSrc.split('/').pop();
+        posterSrc = `/api/video/${key}`;
     }
   }
 
@@ -355,6 +361,8 @@ const Watch: React.FC = () => {
             if (userSnapshot.exists()) {
               setUploaderProfile(userSnapshot.data());
             }
+          }, (err) => {
+            handleFirestoreError(err, OperationType.GET, 'users');
           });
         }
 
@@ -403,9 +411,9 @@ const Watch: React.FC = () => {
         setLoading(false);
       }
     }, (err) => {
-      console.error("Error fetching video:", err);
       setError('Error fetching video');
       setLoading(false);
+      handleFirestoreError(err, OperationType.GET, 'videos');
     });
 
     // Real-time comments
@@ -413,7 +421,7 @@ const Watch: React.FC = () => {
     unsubscribeComments = onSnapshot(commentsQ, (snap) => {
       setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Comment)));
     }, (err) => {
-      console.error("Error fetching comments:", err);
+      handleFirestoreError(err, OperationType.LIST, 'comments');
     });
 
     return () => {
@@ -424,85 +432,18 @@ const Watch: React.FC = () => {
   }, [routeVideoId]);
 
   useEffect(() => {
-    if (!videoSrc || !videoRef.current) {
-      if (video && !videoSrc) {
-        setError('Video source not found');
-      }
-      return;
-    }
-
-    if (!playerRef.current) {
-      const videoElement = document.createElement('video');
-      videoElement.classList.add('video-js', 'vjs-big-play-centered', 'vjs-theme-mmu');
-      videoRef.current.appendChild(videoElement);
-
-      const getMediaType = (url: string) => {
-        if (!url) return 'video/mp4';
-        const lowerUrl = url.toLowerCase();
-        if (lowerUrl.includes('.webm')) return 'video/webm';
-        if (lowerUrl.includes('.ogg') || lowerUrl.includes('.ogv')) return 'video/ogg';
-        if (lowerUrl.includes('.mov')) return 'video/mp4'; // Quicktime is tricky, tell video.js it's mp4 (H.264)
-        if (lowerUrl.includes('.m3u8')) return 'application/x-mpegURL';
-        return 'video/mp4'; 
-      };
-
-      playerRef.current = videojs(videoElement, {
-        autoplay: false,
-        controls: true,
-        responsive: true,
-        fluid: true,
-        sources: [{ src: videoSrc, type: getMediaType(videoSrc) }],
-        controlBar: {
-          children: [
-            'playToggle',
-            'volumePanel',
-            'currentTimeDisplay',
-            'timeDivider',
-            'durationDisplay',
-            'progressControl',
-            'fullscreenToggle',
-          ]
-        }
-      });
-
-      playerRef.current.on('error', () => {
-        const err = playerRef.current?.error();
-        console.warn("VideoJS Error:", err);
-        if (err && err.code === 4) {
-          toast.error("This video format is unsupported by your browser. Supported formats are MP4 and WebM.", { duration: 8000 });
-        }
-      });
-    } else {
-      const currentSrc = playerRef.current.src();
-      if (currentSrc !== videoSrc) {
-        const getMediaType = (url: string) => {
-          if (!url) return 'video/mp4';
-          const lowerUrl = url.toLowerCase();
-          if (lowerUrl.includes('.webm')) return 'video/webm';
-          if (lowerUrl.includes('.ogg') || lowerUrl.includes('.ogv')) return 'video/ogg';
-          if (lowerUrl.includes('.mov')) return 'video/mp4';
-          if (lowerUrl.includes('.m3u8')) return 'application/x-mpegURL';
-          return 'video/mp4'; 
-        };
-        playerRef.current.src({ src: videoSrc, type: getMediaType(videoSrc) });
-      }
-    }
-  }, [videoSrc, video]);
-
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing in a textarea/input
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
         return;
       }
-      
       if (e.code === 'Space') {
-        e.preventDefault(); // prevent page scrolling
-        if (playerRef.current) {
-          if (playerRef.current.paused()) {
-            playerRef.current.play();
+        e.preventDefault();
+        const videoElement = document.querySelector('video');
+        if (videoElement) {
+          if (videoElement.paused) {
+            videoElement.play();
           } else {
-            playerRef.current.pause();
+            videoElement.pause();
           }
         }
       }
@@ -511,16 +452,6 @@ const Watch: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Clean up player on unmount or when route changes
-  useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.dispose();
-        playerRef.current = null;
-      }
-    };
-  }, [routeVideoId]);
 
   if (loading) {
     return (
@@ -627,7 +558,40 @@ const Watch: React.FC = () => {
         {/* Right Side: Video Player (Wider) */}
         <div className="lg:col-span-10">
           <div className="bg-black rounded-3xl overflow-hidden shadow-2xl border border-border aspect-video relative group">
-            <div ref={videoRef} className="w-full h-full" />
+            {videoSrc ? (
+              <>
+                <video 
+                  ref={videoPlayerRef}
+                  src={videoSrc} 
+                  controls 
+                  playsInline
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  className="w-full h-full object-contain"
+                  poster={posterSrc || undefined}
+                />
+                {!isPlaying && (
+                  <button 
+                    onClick={() => {
+                      if (videoPlayerRef.current) {
+                        videoPlayerRef.current.play();
+                      }
+                    }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 hover:bg-black/20 transition-all w-full h-full cursor-pointer z-10"
+                  >
+                    <div className="w-24 h-24 bg-primary/90 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl shadow-primary/50 transform transition-transform hover:scale-110">
+                      <Play fill="currentColor" className="w-12 h-12 text-primary-foreground ml-2" />
+                    </div>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20">
+                <AlertCircle size={48} className="text-muted-foreground mb-4 opacity-50" />
+                <p className="text-muted-foreground font-medium">Video source unavailable</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
