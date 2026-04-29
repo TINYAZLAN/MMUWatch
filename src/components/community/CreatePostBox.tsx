@@ -66,6 +66,7 @@ export const CreatePostBox: React.FC = () => {
         creatorId: user.uid,
         creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
         creatorAvatar: profile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        creatorRole: profile?.role || (user.email === 'fcazlan@gmail.com' ? 'admin' : 'Student'),
         createdAt: serverTimestamp(),
         upvotes: 0,
         comments: 0

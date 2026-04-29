@@ -118,7 +118,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
               {post.author?.isOfficial && <CheckCircle2 size={14} className="text-blue-400" />}
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-primary font-medium">{post.author?.role || 'Student'}</span>
+              <span className="text-xs text-primary font-medium">
+                {(post.creatorRole === 'admin' || post.author?.role === 'admin') ? 'Lecturer' : (post.creatorRole || post.author?.role || 'Student')}
+              </span>
               <span className="w-1 h-1 rounded-full bg-white/20"></span>
               <span className="text-xs text-muted-foreground">{timeAgo}</span>
             </div>
