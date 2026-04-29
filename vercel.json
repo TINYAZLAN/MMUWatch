@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@5"
-    }
-  },
   "rewrites": [
     { "source": "/api/signed-url", "destination": "/api/signed-url" },
     { "source": "/api/video/:key", "destination": "/api/video/[key]" },
