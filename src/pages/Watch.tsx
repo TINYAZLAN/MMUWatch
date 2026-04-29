@@ -10,6 +10,8 @@ import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import VideoCard from '../components/VideoCard';
 import { toast } from 'sonner';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
 
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
@@ -282,6 +284,38 @@ const Watch: React.FC = () => {
     }
   };
 
+  const handleReplyLike = async (commentId: string, replyId: string) => {
+    if (!user || !video) return;
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const replyIndex = comment.replies?.findIndex((r: any) => r.id === replyId);
+    if (replyIndex === undefined || replyIndex === -1) return;
+    
+    // We make a shallow copy of replies
+    const updatedReplies = [...(comment.replies || [])];
+    const reply = updatedReplies[replyIndex];
+    if (!reply.likedBy) reply.likedBy = [];
+
+    const isLiked = reply.likedBy.includes(user.uid);
+    if (isLiked) {
+      reply.likedBy = reply.likedBy.filter((uid: string) => uid !== user.uid);
+      reply.likes = Math.max(0, (reply.likes || 1) - 1);
+    } else {
+      reply.likedBy.push(user.uid);
+      reply.likes = (reply.likes || 0) + 1;
+    }
+
+    try {
+      const commentRef = doc(db, 'videos', video.id, 'comments', commentId);
+      await updateDoc(commentRef, {
+        replies: updatedReplies
+      });
+    } catch (error) {
+      console.error("Error liking reply:", error);
+    }
+  };
+
   const handleCommentSubmit = async () => {
     if (!user || !newComment.trim() || !video) return;
     try {
@@ -405,9 +439,25 @@ const Watch: React.FC = () => {
           
           // Fetch recommendations
           try {
-            const recsQ = query(collection(db, 'videos'), limit(5));
+            let recsQ;
+            if (videoData.category) {
+              recsQ = query(
+                collection(db, 'videos'),
+                where('category', '==', videoData.category),
+                limit(5)
+              );
+            } else {
+              recsQ = query(collection(db, 'videos'), limit(5));
+            }
             const recsSnapshot = await getDocs(recsQ);
-            setRecommendations(recsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)));
+            let recs = recsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)).filter(v => v.id !== routeVideoId);
+            if (recs.length === 0) {
+              // fallback to generic
+              const fallbackQ = query(collection(db, 'videos'), limit(5));
+              const fallbackSnapshot = await getDocs(fallbackQ);
+              recs = fallbackSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)).filter(v => v.id !== routeVideoId);
+            }
+            setRecommendations(recs.slice(0, 4));
           } catch (e) {
             console.warn("Could not fetch recommendations", e);
           }
@@ -438,6 +488,42 @@ const Watch: React.FC = () => {
       if (unsubscribeUploader) unsubscribeUploader();
     };
   }, [routeVideoId]);
+
+  useEffect(() => {
+    let player: any;
+    if (videoPlayerRef.current && !isYouTube && videoSrc) {
+      player = videojs(videoPlayerRef.current, {
+        controls: true,
+        autoplay: false,
+        preload: 'auto',
+        fluid: true,
+        playbackRates: [0.5, 1, 1.25, 1.5, 2],
+        controlBar: {
+          playToggle: true,
+          volumePanel: {
+            inline: false
+          },
+          currentTimeDisplay: true,
+          timeDivider: true,
+          durationDisplay: true,
+          progressControl: true,
+          fullscreenToggle: true,
+          pictureInPictureToggle: false,
+          remainingTimeDisplay: false,
+        }
+      });
+
+      player.on('play', () => { setIsPlaying(true); setIsEnded(false); });
+      player.on('pause', () => { setIsPlaying(false); setIsEnded(player.ended()); });
+      player.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
+    }
+
+    return () => {
+      if (player) {
+        player.dispose();
+      }
+    };
+  }, [videoSrc, isYouTube]);
 
   useEffect(() => {
     if (isYouTube) return;
@@ -577,35 +663,15 @@ const Watch: React.FC = () => {
                 />
               ) : (
               <>
-                <video 
-                  ref={videoPlayerRef}
-                  src={videoSrc} 
-                  controls 
-                  playsInline
-                  onPlay={() => { setIsPlaying(true); setIsEnded(false); }}
-                  onPause={() => { setIsPlaying(false); setIsEnded(videoPlayerRef.current?.ended || false); }}
-                  onEnded={() => { setIsPlaying(false); setIsEnded(true); }}
-                  className="w-full h-full object-contain"
-                  poster={posterSrc || undefined}
-                />
-                {!isPlaying && (
-                  <button 
-                    onClick={() => {
-                      if (videoPlayerRef.current) {
-                        videoPlayerRef.current.play();
-                      }
-                    }}
-                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 hover:bg-black/20 transition-all w-full h-full cursor-pointer z-10"
+                <div data-vjs-player>
+                  <video 
+                    ref={videoPlayerRef}
+                    className="video-js vjs-theme-mmu vjs-big-play-centered"
+                    poster={posterSrc || undefined}
                   >
-                    <div className="w-24 h-24 bg-primary/90 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl shadow-primary/50 transform transition-transform hover:scale-110">
-                      {isEnded ? (
-                        <RotateCcw className="w-12 h-12 text-primary-foreground" />
-                      ) : (
-                        <Play fill="currentColor" className="w-12 h-12 text-primary-foreground ml-2" />
-                      )}
-                    </div>
-                  </button>
-                )}
+                    <source src={videoSrc} type="video/mp4" />
+                  </video>
+                </div>
               </>
               )
             ) : (
@@ -825,6 +891,18 @@ const Watch: React.FC = () => {
                                 )}
                               </div>
                               <p className="text-sm text-foreground/90 mt-1 leading-relaxed">{reply.text}</p>
+                              <div className="flex items-center gap-4 mt-2">
+                                <button 
+                                  onClick={() => handleReplyLike(comment.id, reply.id)}
+                                  className={cn(
+                                    "flex items-center gap-1 transition-colors font-medium text-[10px]",
+                                    reply.likedBy?.includes(user?.uid || '') ? "text-primary" : "text-muted-foreground hover:text-primary"
+                                  )}
+                                >
+                                  <Heart size={12} className={reply.likedBy?.includes(user?.uid || '') ? "fill-primary" : ""} />
+                                  <span>{reply.likes > 0 ? reply.likes : 'Like'}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}

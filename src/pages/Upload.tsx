@@ -85,6 +85,16 @@ const Upload: React.FC = () => {
       const match = youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
       const videoId = match?.[1];
       if (videoId) {
+        // Fetch metadata
+        fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.title) {
+              setFormData(prev => ({ ...prev, title: data.title, description: prev.description || data.title }));
+            }
+          })
+          .catch(err => console.error('Failed to fetch youtube metadata', err));
+
         if (!window.YT) {
           const tag = document.createElement('script');
           tag.src = 'https://www.youtube.com/iframe_api';
