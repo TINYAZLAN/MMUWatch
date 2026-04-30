@@ -10,8 +10,7 @@ import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import VideoCard from '../components/VideoCard';
 import { toast } from 'sonner';
-import videojs from 'video.js';
-import 'video.js/dist/video-js.css';
+import VideoPlayer from '../components/VideoPlayer';
 
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
@@ -31,65 +30,31 @@ const Watch: React.FC = () => {
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<any>(null);
 
-  useEffect(() => {
-    if (isYouTube || !videoSrc) return;
+  let videoSrc = video?.videoURL || (video as any)?.url;
+  const isYouTube = videoSrc?.includes('youtube.com') || videoSrc?.includes('youtu.be');
+  let posterSrc = video?.thumbnailURL;
 
-    if (!playerRef.current) {
-      const videoElement = document.createElement("video-js");
-      videoElement.classList.add('vjs-theme-mmu', 'vjs-big-play-centered');
-      if (videoContainerRef.current) {
-        videoContainerRef.current.appendChild(videoElement);
-        
-        playerRef.current = videojs(videoElement, {
-          controls: true,
-          autoplay: false,
-          preload: 'auto',
-          fluid: true,
-          playbackRates: [0.5, 1, 1.25, 1.5, 2],
-          sources: [{ src: videoSrc, type: 'video/mp4' }],
-          poster: posterSrc || undefined,
-          controlBar: {
-            playToggle: true,
-            volumePanel: {
-              inline: false
-            },
-            currentTimeDisplay: true,
-            timeDivider: true,
-            durationDisplay: true,
-            progressControl: true,
-            fullscreenToggle: true,
-            pictureInPictureToggle: false,
-            remainingTimeDisplay: false,
-          }
-        });
-
-        playerRef.current.on('play', () => { setIsPlaying(true); setIsEnded(false); });
-        playerRef.current.on('pause', () => { setIsPlaying(false); setIsEnded(playerRef.current.ended()); });
-        playerRef.current.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
-      }
-    } else {
-      const player = playerRef.current;
-      player.src({ src: videoSrc, type: 'video/mp4' });
-      player.poster(posterSrc || undefined);
+  // Intercept dummy or direct S3 domains and route them to our proxy
+  if (videoSrc) {
+    if (videoSrc.includes('r2.dev') || videoSrc.includes('r2.cloudflarestorage.com')) {
+        const key = videoSrc.split('/').pop();
+        videoSrc = `/api/video/${key}`;
     }
+  }
 
-    return () => {
-      // Don't dispose on every render, only when the component unmounts entirely or we switch logic.
-      // Wait, we can't do this here if it's dependent on videoSrc. Actually, if we use a separate effect for disposal...
-    };
-  }, [videoSrc, isYouTube, posterSrc]);
+  if (posterSrc) {
+    if (posterSrc.includes('r2.dev') || posterSrc.includes('r2.cloudflarestorage.com')) {
+        const key = posterSrc.split('/').pop();
+        posterSrc = `/api/video/${key}`;
+    }
+  }
 
-  useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.dispose();
-        playerRef.current = null;
-      }
-    };
-  }, []);
+  let youtubeId = '';
+  if (isYouTube) {
+    const match = (video?.videoURL || (video as any)?.url)?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+    youtubeId = match ? match[1] : '';
+  }
 
   const navigate = useNavigate();
 
@@ -110,31 +75,6 @@ const Watch: React.FC = () => {
   const isFollowing = profile?.following?.includes(video?.creatorId || '');
 
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
-
-  let videoSrc = video?.videoURL || (video as any)?.url;
-  
-  const isYouTube = videoSrc?.includes('youtube.com') || videoSrc?.includes('youtu.be');
-  let youtubeId = '';
-  if (isYouTube) {
-    const match = videoSrc.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-    youtubeId = match ? match[1] : '';
-  }
-  
-  // Intercept dummy or direct S3 domains and route them to our proxy
-  if (videoSrc) {
-    if (videoSrc.includes('r2.dev') || videoSrc.includes('r2.cloudflarestorage.com')) {
-        const key = videoSrc.split('/').pop();
-        videoSrc = `/api/video/${key}`;
-    }
-  }
-
-  let posterSrc = video?.thumbnailURL;
-  if (posterSrc) {
-    if (posterSrc.includes('r2.dev') || posterSrc.includes('r2.cloudflarestorage.com')) {
-        const key = posterSrc.split('/').pop();
-        posterSrc = `/api/video/${key}`;
-    }
-  }
 
   const hasIncrementedViews = useRef(false);
 
@@ -509,12 +449,12 @@ const Watch: React.FC = () => {
               recsQ = query(collection(db, 'videos'), limit(5));
             }
             const recsSnapshot = await getDocs(recsQ);
-            let recs = recsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)).filter(v => v.id !== routeVideoId);
+            let recs = recsSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as VideoMetadata)).filter(v => v.id !== routeVideoId);
             if (recs.length === 0) {
               // fallback to generic
               const fallbackQ = query(collection(db, 'videos'), limit(5));
               const fallbackSnapshot = await getDocs(fallbackQ);
-              recs = fallbackSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as VideoMetadata)).filter(v => v.id !== routeVideoId);
+              recs = fallbackSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) } as VideoMetadata)).filter(v => v.id !== routeVideoId);
             }
             setRecommendations(recs.slice(0, 4));
           } catch (e) {
@@ -571,6 +511,27 @@ const Watch: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const playerOptions = React.useMemo(() => ({
+    controls: true,
+    autoplay: false,
+    preload: 'auto',
+    fill: true,
+    playbackRates: [0.5, 1, 1.25, 1.5, 2],
+    sources: [{ src: videoSrc, type: 'video/mp4' }],
+    poster: posterSrc || undefined,
+    controlBar: {
+      playToggle: true,
+      volumePanel: { inline: false },
+      currentTimeDisplay: true,
+      timeDivider: true,
+      durationDisplay: true,
+      progressControl: true,
+      fullscreenToggle: true,
+      pictureInPictureToggle: false,
+      remainingTimeDisplay: false,
+    }
+  }), [videoSrc, posterSrc]);
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto pb-20 px-4 pt-8">
@@ -626,27 +587,57 @@ const Watch: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-20 px-4">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Side: Uploader Details (Sticky) */}
-        <div className="lg:col-span-2 relative">
-          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm sticky top-24">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <Link to={`/channel/${video.creatorId}`} className="w-20 h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+        {/* Main Content Area: Video Player (Wider) */}
+        <div className="lg:col-span-9 xl:col-span-10 order-1">
+          <div className="bg-black sm:rounded-3xl overflow-hidden shadow-2xl border border-border w-full flex justify-center items-center h-[60vh] sm:h-[70vh] lg:h-[80vh] max-h-[1000px] relative group">
+            {videoSrc ? (
+              isYouTube ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
+                  className="w-full h-full"
+                  allowFullScreen
+                  title="YouTube video player"
+                />
+              ) : (
+                <VideoPlayer
+                  options={playerOptions}
+                  onReady={(player) => {
+                    player.on('play', () => { setIsPlaying(true); setIsEnded(false); });
+                    player.on('pause', () => { setIsPlaying(false); setIsEnded(player.ended()); });
+                    player.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
+                  }}
+                />
+              )
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20">
+                <AlertCircle size={48} className="text-muted-foreground mb-4 opacity-50" />
+                <p className="text-muted-foreground font-medium">Video source unavailable</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar: Uploader Details (Sticky on LG) */}
+        <div className="lg:col-span-3 xl:col-span-2 relative order-2">
+          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm lg:sticky lg:top-24">
+            <div className="flex flex-row lg:flex-col items-center lg:text-center gap-4">
+              <Link to={`/channel/${video.creatorId}`} className="shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-lg">
                 <img referrerPolicy="no-referrer" src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
               </Link>
-              <div>
-                <Link to={`/channel/${video.creatorId}`} className="text-lg font-black hover:text-primary transition-colors flex items-center justify-center gap-1">
+              <div className="flex-1 lg:w-full text-left lg:text-center">
+                <Link to={`/channel/${video.creatorId}`} className="text-lg font-black hover:text-primary transition-colors flex items-center lg:justify-center gap-1">
                   {uploaderProfile?.username || video.creatorName}
                   <CheckCircle2 size={16} fill="currentColor" className="text-primary" />
                 </Link>
                 <p className="text-primary font-bold text-[10px] mt-0.5 uppercase tracking-wider">{uploaderProfile?.faculty || video.creatorFaculty || 'MMU Faculty'}</p>
-                <div className="flex items-center justify-center gap-1 text-amber-500">
+                <div className="flex items-center lg:justify-center gap-1 text-amber-500 mt-1">
                   <Award size={14} />
                   <span className="text-xs font-bold">{uploaderProfile?.awards || 0} Awards</span>
                 </div>
               </div>
               
-              <div className="w-full pt-4 border-t border-border space-y-4">
+              <div className="hidden lg:block w-full pt-4 border-t border-border space-y-4">
                 <button 
                   onClick={handleFollow}
                   className={cn(
@@ -669,33 +660,22 @@ const Watch: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Right Side: Video Player (Wider) */}
-        <div className="lg:col-span-10">
-          <div className="bg-black rounded-3xl overflow-hidden shadow-2xl border border-border aspect-video relative group">
-            {videoSrc ? (
-              isYouTube ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${youtubeId}?rel=0`}
-                  className="w-full h-full"
-                  allowFullScreen
-                  title="YouTube video player"
-                />
-              ) : (
-              <>
-                <div data-vjs-player ref={videoContainerRef}>
-                </div>
-              </>
-              )
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20">
-                <AlertCircle size={48} className="text-muted-foreground mb-4 opacity-50" />
-                <p className="text-muted-foreground font-medium">Video source unavailable</p>
+              {/* Tablet/Mobile follow button */}
+              <div className="lg:hidden shrink-0">
+                <button 
+                  onClick={handleFollow}
+                  className={cn(
+                    "px-6 font-bold py-2 rounded-full transition-all shadow-md",
+                    isFollowing 
+                      ? "bg-muted text-foreground" 
+                      : "bg-primary text-white"
+                  )}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
