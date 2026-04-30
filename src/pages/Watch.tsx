@@ -31,7 +31,66 @@ const Watch: React.FC = () => {
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnded, setIsEnded] = useState(false);
-  const videoPlayerRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isYouTube || !videoSrc) return;
+
+    if (!playerRef.current) {
+      const videoElement = document.createElement("video-js");
+      videoElement.classList.add('vjs-theme-mmu', 'vjs-big-play-centered');
+      if (videoContainerRef.current) {
+        videoContainerRef.current.appendChild(videoElement);
+        
+        playerRef.current = videojs(videoElement, {
+          controls: true,
+          autoplay: false,
+          preload: 'auto',
+          fluid: true,
+          playbackRates: [0.5, 1, 1.25, 1.5, 2],
+          sources: [{ src: videoSrc, type: 'video/mp4' }],
+          poster: posterSrc || undefined,
+          controlBar: {
+            playToggle: true,
+            volumePanel: {
+              inline: false
+            },
+            currentTimeDisplay: true,
+            timeDivider: true,
+            durationDisplay: true,
+            progressControl: true,
+            fullscreenToggle: true,
+            pictureInPictureToggle: false,
+            remainingTimeDisplay: false,
+          }
+        });
+
+        playerRef.current.on('play', () => { setIsPlaying(true); setIsEnded(false); });
+        playerRef.current.on('pause', () => { setIsPlaying(false); setIsEnded(playerRef.current.ended()); });
+        playerRef.current.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
+      }
+    } else {
+      const player = playerRef.current;
+      player.src({ src: videoSrc, type: 'video/mp4' });
+      player.poster(posterSrc || undefined);
+    }
+
+    return () => {
+      // Don't dispose on every render, only when the component unmounts entirely or we switch logic.
+      // Wait, we can't do this here if it's dependent on videoSrc. Actually, if we use a separate effect for disposal...
+    };
+  }, [videoSrc, isYouTube, posterSrc]);
+
+  useEffect(() => {
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.dispose();
+        playerRef.current = null;
+      }
+    };
+  }, []);
+
   const navigate = useNavigate();
 
   const toggleReplies = (commentId: string) => {
@@ -490,42 +549,6 @@ const Watch: React.FC = () => {
   }, [routeVideoId]);
 
   useEffect(() => {
-    let player: any;
-    if (videoPlayerRef.current && !isYouTube && videoSrc) {
-      player = videojs(videoPlayerRef.current, {
-        controls: true,
-        autoplay: false,
-        preload: 'auto',
-        fluid: true,
-        playbackRates: [0.5, 1, 1.25, 1.5, 2],
-        controlBar: {
-          playToggle: true,
-          volumePanel: {
-            inline: false
-          },
-          currentTimeDisplay: true,
-          timeDivider: true,
-          durationDisplay: true,
-          progressControl: true,
-          fullscreenToggle: true,
-          pictureInPictureToggle: false,
-          remainingTimeDisplay: false,
-        }
-      });
-
-      player.on('play', () => { setIsPlaying(true); setIsEnded(false); });
-      player.on('pause', () => { setIsPlaying(false); setIsEnded(player.ended()); });
-      player.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
-    }
-
-    return () => {
-      if (player) {
-        player.dispose();
-      }
-    };
-  }, [videoSrc, isYouTube]);
-
-  useEffect(() => {
     if (isYouTube) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
@@ -663,14 +686,7 @@ const Watch: React.FC = () => {
                 />
               ) : (
               <>
-                <div data-vjs-player>
-                  <video 
-                    ref={videoPlayerRef}
-                    className="video-js vjs-theme-mmu vjs-big-play-centered"
-                    poster={posterSrc || undefined}
-                  >
-                    <source src={videoSrc} type="video/mp4" />
-                  </video>
+                <div data-vjs-player ref={videoContainerRef}>
                 </div>
               </>
               )
