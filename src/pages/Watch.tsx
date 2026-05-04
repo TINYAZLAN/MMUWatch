@@ -511,27 +511,6 @@ const Watch: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const playerOptions = React.useMemo(() => ({
-    controls: true,
-    autoplay: false,
-    preload: 'auto',
-    fill: true,
-    playbackRates: [0.5, 1, 1.25, 1.5, 2],
-    sources: [{ src: videoSrc, type: 'video/mp4' }],
-    poster: posterSrc || undefined,
-    controlBar: {
-      playToggle: true,
-      volumePanel: { inline: false },
-      currentTimeDisplay: true,
-      timeDivider: true,
-      durationDisplay: true,
-      progressControl: true,
-      fullscreenToggle: true,
-      pictureInPictureToggle: false,
-      remainingTimeDisplay: false,
-    }
-  }), [videoSrc, posterSrc]);
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto pb-20 px-4 pt-8">
@@ -601,12 +580,11 @@ const Watch: React.FC = () => {
                 />
               ) : (
                 <VideoPlayer
-                  options={playerOptions}
-                  onReady={(player) => {
-                    player.on('play', () => { setIsPlaying(true); setIsEnded(false); });
-                    player.on('pause', () => { setIsPlaying(false); setIsEnded(player.ended()); });
-                    player.on('ended', () => { setIsPlaying(false); setIsEnded(true); });
-                  }}
+                  src={videoSrc || ''}
+                  poster={posterSrc || undefined}
+                  onPlay={() => { setIsPlaying(true); setIsEnded(false); }}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => { setIsPlaying(false); setIsEnded(true); }}
                 />
               )
             ) : (
@@ -618,9 +596,9 @@ const Watch: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar: Uploader Details (Sticky on LG) */}
+        {/* Sidebar: Uploader Details */}
         <div className="lg:col-span-3 xl:col-span-2 relative order-2">
-          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm lg:sticky lg:top-24">
+          <div className="bg-card p-6 rounded-3xl border border-border shadow-sm lg:sticky lg:top-24 hidden-scrollbar lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
             <div className="flex flex-row lg:flex-col items-center lg:text-center gap-4">
               <Link to={`/channel/${video.creatorId}`} className="shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-lg">
                 <img referrerPolicy="no-referrer" src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />

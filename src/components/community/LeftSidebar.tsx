@@ -22,7 +22,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({ activeItem, setActiveI
   };
 
   return (
-    <aside className="hidden md:flex lg:w-56 xl:w-64 flex-col gap-2 shrink-0 h-[calc(100vh-80px)] sticky top-20 py-6">
+    <aside className="hidden md:flex lg:w-56 xl:w-64 flex-col gap-2 shrink-0 sticky top-20 py-6">
       <nav className="flex flex-col gap-1.5 w-full">
         {NAVIGATION_ITEMS.map((item) => {
           const Icon = item.icon;

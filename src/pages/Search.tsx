@@ -477,7 +477,7 @@ const Search: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Sidebar Filters */}
-        <aside className="lg:col-span-3 space-y-6 sticky top-24">
+        <aside className="lg:col-span-3 space-y-6">
           <div className="bg-card rounded-3xl border border-border p-6 shadow-sm space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-sm uppercase tracking-widest flex items-center gap-2">

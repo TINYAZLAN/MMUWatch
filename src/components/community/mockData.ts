@@ -1,10 +1,10 @@
-import { Home, Users, Calendar, TrendingUp } from 'lucide-react';
+import { Home, Users, Calendar, MessageCircle } from 'lucide-react';
 
 export const NAVIGATION_ITEMS: { icon: any; label: string; id: string; badge?: string }[] = [
-  { icon: Home, label: 'Home', id: 'home' },
+  { icon: Home, label: 'Posts', id: 'home' },
   { icon: Users, label: 'Clubs', id: 'clubs' },
   { icon: Calendar, label: 'All Events', id: 'events' },
-  { icon: TrendingUp, label: 'Trending', id: 'trending' },
+  { icon: MessageCircle, label: 'Lounge', id: 'friends' },
 ];
 
 export const UPCOMING_EVENTS = [

@@ -43,7 +43,7 @@ export const RightSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="hidden lg:flex w-64 xl:w-80 flex-col gap-6 shrink-0 sticky top-24 pb-12 h-fit">
+    <aside className="hidden lg:flex w-64 xl:w-80 flex-col gap-6 shrink-0 sticky top-24 pb-12">
       
       {/* Upcoming Events Card */}
       <div className="bg-[#0f1115] border border-white/5 rounded-3xl p-5 shadow-2xl relative overflow-hidden group">

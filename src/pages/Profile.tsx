@@ -552,13 +552,24 @@ const Profile: React.FC = () => {
                         {isAdmin ? 'Responsibilities / Clubs Managed' : 'My Subjects'}
                       </label>
                       <div className="flex gap-3 mb-4">
-                        <input 
-                          type="text"
-                          value={newSubject} 
-                          onChange={(e) => setNewSubject(e.target.value)}
-                          placeholder={isAdmin ? "Add a responsibility..." : "Add a subject..."}
-                          className="flex-1 bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all"
-                        />
+                        {isAdmin ? (
+                          <select 
+                            value={newSubject} 
+                            onChange={(e) => setNewSubject(e.target.value)}
+                            className="flex-1 bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all appearance-none"
+                          >
+                            <option value="">Select a club you joined...</option>
+                            {joinedClubs.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        ) : (
+                          <input 
+                            type="text"
+                            value={newSubject} 
+                            onChange={(e) => setNewSubject(e.target.value)}
+                            placeholder="Add a subject..."
+                            className="flex-1 bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all"
+                          />
+                        )}
                         <button 
                           onClick={addSubject}
                           className="bg-primary text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"

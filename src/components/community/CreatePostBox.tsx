@@ -50,10 +50,10 @@ export const CreatePostBox: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if ((!content.trim() && !imageFile) || !user) return;
+    if ((!content.trim() && !imageFile && !imagePreview) || !user) return;
     setIsSubmitting(true);
     try {
-      let finalImageUrl = null;
+      let finalImageUrl = imagePreview && !imageFile ? imagePreview : null;
       if (imageFile) {
         finalImageUrl = await uploadToCloudflare(imageFile);
       }
@@ -99,7 +99,7 @@ export const CreatePostBox: React.FC = () => {
           className="w-12 h-12 rounded-full object-cover ring-2 ring-transparent bg-muted"
         />
         
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <textarea
             placeholder="What's on your mind? Share your thoughts, ask questions, or announce something..."
             value={content}
@@ -123,12 +123,23 @@ export const CreatePostBox: React.FC = () => {
           )}
 
           {showTags && (
-            <div className="mt-2 mb-4">
+            <div className="mt-2 mb-4 space-y-2">
               <input
                 type="text"
                 placeholder="Add tags (comma separated) e.g. web, coding, css"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-primary focus:outline-none"
+              />
+              <input
+                type="url"
+                placeholder="Or paste an image URL to save storage"
+                value={imagePreview || ''}
+                onChange={(e) => {
+                  setImageFile(null);
+                  setImagePreview(e.target.value || null);
+                  setIsFocused(true);
+                }}
                 className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-primary focus:outline-none"
               />
             </div>
@@ -161,9 +172,9 @@ export const CreatePostBox: React.FC = () => {
             
             <button 
               onClick={(e) => { e.preventDefault(); handleSubmit(); }}
-              disabled={(!content.trim() && !imageFile) || isSubmitting}
+              disabled={(!content.trim() && !imageFile && !imagePreview) || isSubmitting}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm transition-all shadow-lg ${
-                (content.trim().length > 0 || imageFile) && !isSubmitting
+                (content.trim().length > 0 || imageFile || imagePreview) && !isSubmitting
                   ? 'bg-primary text-white shadow-primary/20 hover:scale-105' 
                   : 'bg-white/5 text-muted-foreground cursor-not-allowed'
               }`}

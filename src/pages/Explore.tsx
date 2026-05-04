@@ -16,6 +16,7 @@ const Explore: React.FC = () => {
   const [topVideos, setTopVideos] = useState<VideoMetadata[]>([]);
   const [topCreators, setTopCreators] = useState<UserProfile[]>([]);
   const [events, setEvents] = useState<MMUEvent[]>([]);
+  const [recentAwards, setRecentAwards] = useState<any[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [buzzNews, setBuzzNews] = useState<BuzzNews[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,9 +74,22 @@ const Explore: React.FC = () => {
     const creatorsQ = query(collection(db, 'users'), orderBy('followerCount', 'desc'), limit(5));
     const unsubscribeCreators = onSnapshot(creatorsQ, (snapshot) => {
       const creatorsData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      setTopCreators(creatorsData);
+      if (creatorsData.length === 0) {
+        setTopCreators([
+          { uid: 'mock_c1', username: 'Alex Student', displayName: 'Alex', followerCount: 420 },
+          { uid: 'mock_c2', username: 'Sarah Cinematic', displayName: 'Sarah', followerCount: 380 },
+          { uid: 'mock_c3', username: 'Dr. Tan', displayName: 'Tan', followerCount: 250 }
+        ] as any);
+      } else {
+        setTopCreators(creatorsData);
+      }
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
+      console.warn("Error fetching Top Creators (index maybe missing). Using fallback.", error);
+      setTopCreators([
+        { uid: 'mock_c1', username: 'Alex Student', displayName: 'Alex', followerCount: 420 },
+        { uid: 'mock_c2', username: 'Sarah Cinematic', displayName: 'Sarah', followerCount: 380 },
+        { uid: 'mock_c3', username: 'Dr. Tan', displayName: 'Tan', followerCount: 250 }
+      ] as any);
     });
 
     // Real-time Events
@@ -150,12 +164,22 @@ const Explore: React.FC = () => {
       console.error("Error fetching buzz:", error);
     });
 
+    // Real-time Recent Awards
+    const awardsQ = query(collection(db, 'recentAwards'), orderBy('createdAt', 'desc'), limit(10));
+    const unsubscribeAwards = onSnapshot(awardsQ, (snapshot) => {
+      const awardsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRecentAwards(awardsData);
+    }, (error) => {
+      console.error("Error fetching awards:", error);
+    });
+
     return () => {
       unsubscribeVideos();
       unsubscribeCreators();
       unsubscribeEvents();
       unsubscribeProducts();
       unsubscribeBuzz();
+      unsubscribeAwards();
     };
   }, []);
 
@@ -358,22 +382,24 @@ const Explore: React.FC = () => {
               <Trophy className="text-yellow-500" />
               <h2 className="text-2xl font-black tracking-tight">Recent Winners</h2>
             </div>
-            <div className="flex overflow-x-auto gap-4 pb-4 snap-x hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-               {[
-                 { name: 'Ahmad Faizal', award: 'Best Short Film 2026' },
-                 { name: 'Sarah Lim', award: 'Top Tech Innovator' },
-                 { name: 'John Doe', award: 'Creative Design Award' },
-                 { name: 'Alicia Tan', award: 'Outstanding Vlog' },
-                 { name: 'Tech Club', award: 'Hackathon Champions' }
-               ].map((winner, i) => (
-                 <div key={i} className="min-w-[200px] snap-start bg-card border border-border rounded-2xl p-5 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-yellow-500/30 transition-all">
-                   <div className="w-14 h-14 bg-yellow-500/10 rounded-full flex items-center justify-center mb-4">
-                     <Award className="text-yellow-500" size={28} />
+             <div className="flex overflow-x-auto gap-4 pb-4 snap-x hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+               {recentAwards.length > 0 ? recentAwards.map((winner, i) => (
+                 <Link to={`/profile/${winner.userId}`} key={i} className="min-w-[200px] snap-start bg-card border border-border rounded-2xl p-5 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-yellow-500/30 transition-all cursor-pointer">
+                   <div className="w-14 h-14 bg-yellow-500/10 rounded-full flex items-center justify-center mb-4 overflow-hidden border-2 border-yellow-500/30">
+                     {winner.userPhotoURL ? (
+                       <img src={winner.userPhotoURL} alt={winner.userName} className="w-full h-full object-cover" />
+                     ) : (
+                       <Award className="text-yellow-500" size={28} />
+                     )}
                    </div>
-                   <h4 className="font-black text-lg">{winner.name}</h4>
-                   <p className="text-sm text-muted-foreground mt-1">{winner.award}</p>
+                   <h4 className="font-black text-lg text-foreground hover:text-yellow-500 transition-colors">{winner.userName}</h4>
+                   <p className="text-sm text-yellow-500/80 font-bold mt-1 max-w-full break-words">{winner.award}</p>
+                 </Link>
+               )) : (
+                 <div className="w-full text-center p-8 bg-card border border-border rounded-2xl text-muted-foreground">
+                   No awards given yet.
                  </div>
-               ))}
+               )}
             </div>
           </section>
 
@@ -520,7 +546,7 @@ const Explore: React.FC = () => {
                     index < 3 ? 'bg-muted/50 hover:bg-muted' : 'hover:bg-muted'
                   }`}
                 >
-                  <Link to={`/profile/${creator.uid}`} className="flex-1 flex items-center gap-4 cursor-pointer">
+                  <Link to={`/channel/${creator.uid}`} className="flex-1 flex items-center gap-4 cursor-pointer">
                     <div className={`font-black text-xl w-8 text-center ${
                       index === 0 ? 'text-yellow-500 text-3xl' : 
                       index === 1 ? 'text-slate-400' : 
@@ -534,15 +560,6 @@ const Explore: React.FC = () => {
                       <p className="text-sm text-muted-foreground font-medium">{creator.followerCount || 0} followers</p>
                     </div>
                   </Link>
-                  {isAdmin && (
-                    <button 
-                      onClick={() => handleDeleteUser(creator.uid)}
-                      className="absolute right-4 bg-red-500/90 text-white p-2 rounded-full hover:bg-red-600 transition-colors shadow-sm z-10"
-                      title="Delete User"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>

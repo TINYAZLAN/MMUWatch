@@ -19,6 +19,9 @@ const UserProfile: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
+  const [showGiveAwardModal, setShowGiveAwardModal] = useState(false);
+  const [awardEventText, setAwardEventText] = useState('');
+  const [awardEvents, setAwardEvents] = useState<any[]>([]);
   const [showDeleteUserModal, setShowDeleteUserModal] = useState(false);
   const [showDeleteVideoModal, setShowDeleteVideoModal] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<{id: string, creatorId: string} | null>(null);
@@ -282,16 +285,37 @@ const UserProfile: React.FC = () => {
   };
 
   const handleGiveAward = async () => {
-    if (!isAdmin || !userId || !profile) return;
+    if (!isAdmin || !userId || !profile || !awardEventText) return;
     try {
       await updateDoc(doc(db, 'users', userId), {
         awards: increment(1)
       });
+      await addDoc(collection(db, 'recentAwards'), {
+        userId,
+        userName: profile.displayName || profile.username || 'Anonymous',
+        userPhotoURL: profile.photoURL || '',
+        award: awardEventText,
+        createdAt: serverTimestamp()
+      });
       toast.success("Award given to user!");
-      setShowAdminMenu(false);
+      setShowGiveAwardModal(false);
+      setAwardEventText('');
     } catch (error) {
       console.error("Error giving award:", error);
       toast.error("Failed to give award");
+    }
+  };
+
+  const openAwardModal = async () => {
+    setShowAdminMenu(false);
+    setShowGiveAwardModal(true);
+    if (awardEvents.length === 0) {
+      try {
+        const snap = await getDocs(collection(db, 'events'));
+        setAwardEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error fetching events:", err);
+      }
     }
   };
 
@@ -328,7 +352,7 @@ const UserProfile: React.FC = () => {
                   {profile.isBusinessPartner ? 'Remove Partner Tag' : 'Add Partner Tag'}
                 </button>
                 <button 
-                  onClick={handleGiveAward}
+                  onClick={openAwardModal}
                   className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-muted transition-colors flex items-center gap-2"
                 >
                   <Award size={16} className="text-amber-500" />
@@ -469,6 +493,52 @@ const UserProfile: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showGiveAwardModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-200">
+          <div className="bg-card w-full max-w-lg rounded-3xl p-8 border border-border shadow-2xl relative">
+            <h2 className="text-2xl font-black mb-6 text-white flex items-center gap-2"><Award className="text-amber-500"/> Give Award</h2>
+            <p className="text-muted-foreground mb-4 text-sm">Select an event or type a custom award name to give to <strong>{profile.displayName || profile.username}</strong>.</p>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Event / Award Name</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={awardEventText}
+                    onChange={(e) => setAwardEventText(e.target.value)}
+                    placeholder="e.g. Best Short Film 2026"
+                    className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all pr-10"
+                    list="award-events-list"
+                  />
+                  <datalist id="award-events-list">
+                    {awardEvents.map(ev => (
+                       <option key={ev.id} value={ev.title} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4 w-full">
+              <button 
+                onClick={() => setShowGiveAwardModal(false)}
+                className="flex-1 px-4 py-3 bg-muted rounded-xl text-white font-bold hover:bg-muted/80 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleGiveAward}
+                disabled={!awardEventText.trim()}
+                className="flex-1 px-4 py-3 bg-amber-500 rounded-xl text-white font-bold hover:bg-amber-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirm Award
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete User Modal */}
       {showDeleteUserModal && (

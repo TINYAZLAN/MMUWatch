@@ -674,8 +674,9 @@ const Upload: React.FC = () => {
 
         {/* Right: Assignment Tracker */}
         {!isStaff && (
-          <div className="bg-card p-6 rounded-3xl border border-border shadow-2xl h-fit sticky top-24">
-            <div className="flex items-center gap-2 mb-6">
+          <div className="lg:col-span-1 relative">
+            <div className="bg-card p-6 rounded-3xl border border-border shadow-2xl lg:sticky lg:top-24 hidden-scrollbar lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto w-full">
+              <div className="flex items-center gap-2 mb-6">
               <Sparkles className="text-yellow-500" size={24} />
               <h3 className="text-xl font-bold">Assignment Tracker</h3>
             </div>
@@ -748,6 +749,7 @@ const Upload: React.FC = () => {
                 Please select a subject to view your pending assignments.
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
