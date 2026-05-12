@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VideoMetadata, UserProfile, MMUEvent, BuzzNews } from '../types';
 import VideoCard from '../components/VideoCard';
@@ -56,16 +56,7 @@ const Explore: React.FC = () => {
     const videosQ = query(collection(db, 'videos'), orderBy('likes', 'desc'), limit(4));
     const unsubscribeVideos = onSnapshot(videosQ, (snapshot) => {
       const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata));
-      if (videoData.length === 0) {
-        setTopVideos([
-          { id: 'v1', title: 'Campus Tour 2026', description: 'Explore the new facilities!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', creatorId: 'user1', creatorName: 'John Doe', likes: 1200, comments: 45, views: 5000, category: 'Campus Life', createdAt: new Date().toISOString(), tags: ['campus', 'tour'] },
-          { id: 'v2', title: 'FCI Final Year Project Showcase', description: 'Amazing projects by our seniors.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', creatorId: 'user2', creatorName: 'Jane Smith', likes: 950, comments: 30, views: 3200, category: 'Projects', createdAt: new Date().toISOString(), tags: ['fyp', 'fci'] },
-          { id: 'v3', title: 'Freshies Night Highlights', description: 'What a night to remember!', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', creatorId: 'user3', creatorName: 'MMU SRC', likes: 840, comments: 55, views: 4100, category: 'Events', createdAt: new Date().toISOString(), tags: ['freshies', 'party'] },
-          { id: 'v4', title: 'Library Study Hacks', description: 'How to survive finals week.', videoURL: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', creatorId: 'user4', creatorName: 'Study Guru', likes: 720, comments: 20, views: 2800, category: 'Tutorials', createdAt: new Date().toISOString(), tags: ['study', 'library'] }
-        ]);
-      } else {
-        setTopVideos(videoData);
-      }
+      setTopVideos(videoData);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'videos');
     });
@@ -74,53 +65,16 @@ const Explore: React.FC = () => {
     const creatorsQ = query(collection(db, 'users'), orderBy('followerCount', 'desc'), limit(5));
     const unsubscribeCreators = onSnapshot(creatorsQ, (snapshot) => {
       const creatorsData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      if (creatorsData.length === 0) {
-        setTopCreators([
-          { uid: 'mock_c1', username: 'Alex Student', displayName: 'Alex', followerCount: 420 },
-          { uid: 'mock_c2', username: 'Sarah Cinematic', displayName: 'Sarah', followerCount: 380 },
-          { uid: 'mock_c3', username: 'Dr. Tan', displayName: 'Tan', followerCount: 250 }
-        ] as any);
-      } else {
-        setTopCreators(creatorsData);
-      }
+      setTopCreators(creatorsData);
     }, (error) => {
-      console.warn("Error fetching Top Creators (index maybe missing). Using fallback.", error);
-      setTopCreators([
-        { uid: 'mock_c1', username: 'Alex Student', displayName: 'Alex', followerCount: 420 },
-        { uid: 'mock_c2', username: 'Sarah Cinematic', displayName: 'Sarah', followerCount: 380 },
-        { uid: 'mock_c3', username: 'Dr. Tan', displayName: 'Tan', followerCount: 250 }
-      ] as any);
+      console.warn("Error fetching Top Creators:", error);
     });
 
     // Real-time Events
     const eventsQ = query(collection(db, 'events'), orderBy('createdAt', 'desc'), limit(10));
     const unsubscribeEvents = onSnapshot(eventsQ, (snapshot) => {
-      const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      
-      if (eventsData.length === 0) {
-        setEvents([
-          {
-            id: '1',
-            title: "MMU Cinematic Arts Short Film Competition 2026",
-            location: "Faculty of Cinematic Arts (FCA)",
-            description: "RM 5,000 + Internship at Astro",
-            date: "15th May 2026",
-            imageURL: "https://picsum.photos/seed/film/800/400",
-            keyword: "ShortFilm2026"
-          },
-          {
-            id: '2',
-            title: "Cyberjaya Campus Hiking Vlog Challenge",
-            location: "MMU Outdoor Club",
-            description: "GoPro Hero 12 + Camping Gear",
-            date: "30th April 2026",
-            imageURL: "https://picsum.photos/seed/hiking/800/400",
-            keyword: "HikingVlog"
-          }
-        ]);
-      } else {
-        setEvents(eventsData as MMUEvent[]);
-      }
+      const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MMUEvent));
+      setEvents(eventsData);
     }, (error) => {
       console.error("Error fetching events:", error);
     });
@@ -129,16 +83,7 @@ const Explore: React.FC = () => {
     const productsQ = query(collection(db, 'products'), orderBy('createdAt', 'desc'), limit(8));
     const unsubscribeProducts = onSnapshot(productsQ, (snapshot) => {
       const productsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-      if (productsData.length === 0) {
-        setProducts([
-          { id: 'p1', name: 'MMU Limited Hoodie', price: 89, sellerName: 'MMU Store', sellerId: 'admin', campus: 'Cyberjaya', imageURL: 'https://picsum.photos/seed/hoodie/400/400', createdAt: new Date() },
-          { id: 'p2', name: 'Smart Study Lamp', price: 45, sellerName: 'TechGadgets', sellerId: 'bp1', campus: 'Melaka', imageURL: 'https://picsum.photos/seed/lamp/400/400', createdAt: new Date() },
-          { id: 'p3', name: 'MMU Lanyard 2026', price: 15, sellerName: 'SRC MMU', sellerId: 'admin', campus: 'Cyberjaya', imageURL: 'https://picsum.photos/seed/lanyard/400/400', createdAt: new Date() },
-          { id: 'p4', name: 'Organic Coffee Beans', price: 35, sellerName: 'Campus Cafe', sellerId: 'bp2', campus: 'Melaka', imageURL: 'https://picsum.photos/seed/coffee/400/400', createdAt: new Date() },
-        ]);
-      } else {
-        setProducts(productsData);
-      }
+      setProducts(productsData);
       setLoading(false);
     }, (error) => {
       console.error("Error fetching products:", error);
@@ -149,17 +94,7 @@ const Explore: React.FC = () => {
     const buzzQ = query(collection(db, 'buzzNews'), orderBy('createdAt', 'desc'), limit(5));
     const unsubscribeBuzz = onSnapshot(buzzQ, (snapshot) => {
       const buzzData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BuzzNews));
-      if (buzzData.length === 0) {
-        setBuzzNews([
-          { id: 'b1', title: 'MMU Ranks Top 10 in Asia', summary: 'Multimedia University has officially been ranked in the top 10 for tech universities in Asia.', imageURL: 'https://picsum.photos/seed/mmu1/800/400', createdAt: new Date() },
-          { id: 'b2', title: 'New AI Lab Opens', summary: 'The new state-of-the-art AI lab is now open for all students in the Faculty of Computing.', imageURL: 'https://picsum.photos/seed/mmu2/800/400', createdAt: new Date() },
-          { id: 'b3', title: 'Campus Festival 2026', summary: 'Get ready for the biggest campus festival this coming November. Early bird tickets available now!', imageURL: 'https://picsum.photos/seed/mmu3/800/400', createdAt: new Date() },
-          { id: 'b4', title: 'Esports Team Wins Nationals', summary: 'MMU Esports team clinches the national championship title in an intense grand final match.', imageURL: 'https://picsum.photos/seed/mmu4/800/400', createdAt: new Date() },
-          { id: 'b5', title: 'Tech Startup Incubator Launch', summary: 'A new incubator program launches to help students turn their final year projects into real startups.', imageURL: 'https://picsum.photos/seed/mmu5/800/400', createdAt: new Date() },
-        ]);
-      } else {
-        setBuzzNews(buzzData);
-      }
+      setBuzzNews(buzzData);
     }, (error) => {
       console.error("Error fetching buzz:", error);
     });
@@ -270,12 +205,9 @@ const Explore: React.FC = () => {
     if (!isAdmin || !editingBuzz) return;
 
     try {
-      // In a real app, this would update the document in Firestore
-      // await updateDoc(doc(db, 'buzzNews', editingBuzz.id), { ...editingBuzz });
-      
-      // For mock data, we just update the local state
-      setBuzzNews(prev => prev.map(news => news.id === editingBuzz.id ? editingBuzz : news));
-      
+      if (editingBuzz.id) {
+        await updateDoc(doc(db, 'buzzNews', editingBuzz.id), { ...editingBuzz });
+      }
       toast.success("Buzz news updated successfully!");
       setEditingBuzz(null);
     } catch (error) {

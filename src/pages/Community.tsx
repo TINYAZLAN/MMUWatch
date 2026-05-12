@@ -145,7 +145,7 @@ const Community: React.FC = () => {
             id: doc.id,
             name: data.username || data.displayName || 'User',
             avatar: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.username || doc.id}`,
-            isOnline: true // Mock online status for now
+            isOnline: data.isOnline !== undefined ? data.isOnline : true
           };
         }));
       });

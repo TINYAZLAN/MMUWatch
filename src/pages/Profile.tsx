@@ -282,59 +282,74 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 relative">
+      {/* Background glow effects */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px] -z-10 pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-pink-600/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
+
       {/* Profile Header */}
-      <div className="bg-card rounded-3xl p-8 border border-border shadow-sm flex flex-col md:flex-row items-center md:items-start gap-8">
-        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-          <img referrerPolicy="no-referrer"   
-            src={photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
-            alt={user.displayName || 'User'} 
-            className="w-32 h-32 rounded-3xl border-4 border-primary object-cover bg-muted shadow-xl"
-            
-          />
-          <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <Camera size={24} className="text-white" />
-          </div>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageUpload} 
-            accept="image/*" 
-            className="hidden" 
-          />
-        </div>
-        <div className="flex-1 text-center md:text-left space-y-4 w-full">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-4xl font-black tracking-tight">{user.displayName}</h1>
-              <p className="text-muted-foreground font-bold">@{username}</p>
+      <div className="relative bg-black/40 backdrop-blur-2xl rounded-[2.5rem] p-8 md:p-12 border border-white/5 shadow-2xl overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent opacity-50" />
+        
+        <div className="relative flex flex-col md:flex-row items-center md:items-start gap-10">
+          <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            <div className="absolute inset-0 bg-primary/30 rounded-full blur-2xl group-hover:bg-primary/40 transition-colors" />
+            <img referrerPolicy="no-referrer"   
+              src={photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
+              alt={user.displayName || 'User'} 
+              className="relative w-40 h-40 rounded-full border-[6px] border-black/50 object-cover shadow-2xl transition-transform hover:scale-105 duration-500"
+            />
+            <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300 backdrop-blur-sm">
+              <Camera size={32} className="text-white" />
             </div>
-            <div className="flex gap-8 justify-center md:justify-start">
-              <div className="text-center">
-                <div className="text-3xl font-black text-primary">{stats.followers}</div>
-                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Followers</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-black text-primary">{stats.awards}</div>
-                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Awards Won</div>
-              </div>
-            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImageUpload} 
+              accept="image/*" 
+              className="hidden" 
+            />
           </div>
           
-          <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-            {joinedClubs.length > 0 ? joinedClubs.map(club => (
-              <span key={club} className="bg-primary/10 text-primary px-4 py-1.5 rounded-xl text-xs font-black border border-primary/20 uppercase tracking-wider">
-                {club}
-              </span>
-            )) : (
-              <span className="text-muted-foreground text-xs italic font-medium">No clubs joined yet</span>
-            )}
+          <div className="flex-1 text-center md:text-left space-y-6 w-full">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-2">{user.displayName}</h1>
+                <p className="text-primary font-bold tracking-wide">@{username}</p>
+                <div className="flex flex-col md:flex-row gap-3 mt-4 text-sm text-gray-400">
+                  <span className="flex items-center gap-1"><BookOpen size={16} className="text-primary/70" /> {department || 'Department'}</span>
+                  <span className="hidden md:inline">•</span>
+                  <span>{levelOfStudy}</span>
+                </div>
+              </div>
+              <div className="flex gap-8 justify-center md:justify-start bg-black/30 p-4 rounded-2xl border border-white/5 backdrop-blur-md">
+                <div className="text-center">
+                  <div className="text-3xl font-black text-white">{stats.followers}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-primary font-black mt-1">Followers</div>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div className="text-center">
+                  <div className="text-3xl font-black text-white">{stats.awards}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-primary font-black mt-1">Awards</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+              {joinedClubs.length > 0 ? joinedClubs.map(club => (
+                <span key={club} className="bg-primary/20 text-white px-4 py-2 rounded-full text-xs font-bold border border-primary/30 shadow-[0_0_15px_rgba(var(--primary),0.2)]">
+                  {club}
+                </span>
+              )) : (
+                <span className="text-gray-500 text-xs italic font-medium">No clubs joined yet</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-border pb-4 overflow-x-auto no-scrollbar">
+      <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
         {[
           { id: 'videos', icon: Video, label: 'My Videos' },
           { id: 'saved', icon: Save, label: 'Saved' },
@@ -346,13 +361,14 @@ const Profile: React.FC = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all whitespace-nowrap uppercase tracking-widest",
+              "flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm transition-all whitespace-nowrap",
               activeTab === tab.id 
-                ? "bg-primary text-white shadow-lg shadow-primary/20" 
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-primary text-white shadow-[0_0_20px_rgba(255,20,147,0.4)] border border-primary/50" 
+                : "bg-black/40 text-gray-400 hover:text-white hover:bg-black/60 border border-white/5 backdrop-blur-md"
             )}
           >
-            <tab.icon size={18} /> {tab.label}
+            <tab.icon size={18} className={activeTab === tab.id ? "text-white" : "text-gray-500"} /> 
+            {tab.label}
           </button>
         ))}
       </div>
@@ -360,58 +376,43 @@ const Profile: React.FC = () => {
       {/* Tab Content */}
       <div className="min-h-[400px]">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="flex justify-center py-32">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary shadow-[0_0_15px_rgba(255,20,147,0.5)]"></div>
           </div>
         ) : (
-          <>
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {activeTab === 'videos' && (
               <div className="space-y-4">
                 {myVideos.length > 0 ? (
-                  <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-border bg-muted/50">
-                          <th className="p-5 font-black text-muted-foreground uppercase tracking-widest text-[10px]">Video</th>
-                          <th className="p-5 font-black text-muted-foreground uppercase tracking-widest text-[10px] text-center">Views</th>
-                          <th className="p-5 font-black text-muted-foreground uppercase tracking-widest text-[10px] text-center">Likes</th>
-                          <th className="p-5 font-black text-muted-foreground uppercase tracking-widest text-[10px] text-right">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {myVideos.map(video => {
-                          return (
-                            <tr 
-                              key={video.id} 
-                              onClick={() => navigate(`/watch/${video.id}`)}
-                              className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer group"
-                            >
-                              <td className="p-5">
-                                <div className="flex items-center gap-4">
-                                  <div className="w-24 h-14 bg-muted rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-                                    <img referrerPolicy="no-referrer" src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                  </div>
-                                  <div>
-                                    <p className="font-black text-sm line-clamp-1 group-hover:text-primary transition-colors">{video.title}</p>
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{video.category}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="p-5 text-center font-black text-sm">{video.views?.toLocaleString() || 0}</td>
-                              <td className="p-5 text-center font-black text-sm">{video.likes || 0}</td>
-                              <td className="p-5 text-right text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                {video.createdAt ? new Date(video.createdAt.toMillis ? video.createdAt.toMillis() : video.createdAt).toLocaleDateString() : 'Just now'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {myVideos.map(video => (
+                      <div 
+                        key={video.id} 
+                        onClick={() => navigate(`/watch/${video.id}`)}
+                        className="group bg-black/40 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden shadow-xl cursor-pointer hover:border-primary/50 hover:shadow-[0_0_30px_rgba(255,20,147,0.15)] transition-all duration-300"
+                      >
+                        <div className="relative aspect-video overflow-hidden">
+                          <img referrerPolicy="no-referrer" src={video.thumbnailURL || `https://picsum.photos/seed/${video.id}/640/360`} alt={video.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                          <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-bold text-white border border-white/10">
+                            {video.category}
+                          </div>
+                        </div>
+                        <div className="p-5">
+                          <h3 className="font-bold text-lg text-white mb-2 line-clamp-2 group-hover:text-primary transition-colors">{video.title}</h3>
+                          <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
+                            <span className="flex items-center gap-1"><Play size={12} className="text-primary/70" /> {video.views?.toLocaleString() || 0}</span>
+                            <span>{video.createdAt ? new Date(video.createdAt.toMillis ? video.createdAt.toMillis() : video.createdAt).toLocaleDateString() : 'Just now'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="text-center py-20 text-muted-foreground bg-card rounded-3xl border border-border border-dashed">
-                    <Video size={48} className="mx-auto mb-4 opacity-20" />
-                    <p className="font-bold">You haven't uploaded any videos yet.</p>
+                  <div className="text-center py-32 text-gray-500 bg-black/20 rounded-[2.5rem] border border-white/5 backdrop-blur-md">
+                    <Video size={64} className="mx-auto mb-6 opacity-20 text-primary" />
+                    <p className="font-bold text-xl text-white/50">You haven't uploaded any videos yet.</p>
+                    <p className="text-sm mt-2">Share your cinematic moments with the world.</p>
                   </div>
                 )}
               </div>
@@ -424,9 +425,9 @@ const Profile: React.FC = () => {
                     <VideoCard key={video.id} video={video} />
                   ))
                 ) : (
-                  <div className="col-span-full text-center py-20 text-muted-foreground bg-card rounded-3xl border border-border border-dashed">
-                    <Save size={48} className="mx-auto mb-4 opacity-20" />
-                    <p className="font-bold">You haven't saved any videos yet.</p>
+                  <div className="col-span-full text-center py-32 text-gray-500 bg-black/20 rounded-[2.5rem] border border-white/5 backdrop-blur-md">
+                    <Save size={64} className="mx-auto mb-6 opacity-20 text-primary" />
+                    <p className="font-bold text-xl text-white/50">Your watchlist is empty.</p>
                   </div>
                 )}
               </div>
@@ -435,19 +436,22 @@ const Profile: React.FC = () => {
             {activeTab === 'comments' && (
               <div className="space-y-4">
                 {myComments.length > 0 ? (
-                  myComments.map(comment => (
-                    <div key={comment.id} className="bg-card p-6 rounded-3xl border border-border shadow-sm hover:border-primary/30 transition-all">
-                      <p className="text-foreground font-medium mb-3 leading-relaxed">"{comment.text}"</p>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex justify-between items-center pt-4 border-t border-border/50">
-                        <span className="flex items-center gap-1"><Play size={12} /> On video: {comment.videoId}</span>
-                        <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {myComments.map(comment => (
+                      <div key={comment.id} className="relative bg-black/40 backdrop-blur-xl p-6 rounded-3xl border border-white/5 shadow-xl hover:border-primary/30 transition-all group overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-primary/50 group-hover:bg-primary transition-colors" />
+                        <p className="text-white font-medium mb-6 leading-relaxed text-lg pl-4">"{comment.text}"</p>
+                        <div className="text-xs font-bold uppercase tracking-widest text-gray-500 flex justify-between items-center pt-4 border-t border-white/5 pl-4">
+                          <span className="flex items-center gap-2 text-primary/80"><Play size={14} /> Video ID: {comment.videoId.slice(0, 8)}...</span>
+                          <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-center py-20 text-muted-foreground bg-card rounded-3xl border border-border border-dashed">
-                    <MessageSquare size={48} className="mx-auto mb-4 opacity-20" />
-                    <p className="font-bold">You haven't made any comments yet.</p>
+                  <div className="text-center py-32 text-gray-500 bg-black/20 rounded-[2.5rem] border border-white/5 backdrop-blur-md">
+                    <MessageSquare size={64} className="mx-auto mb-6 opacity-20 text-primary" />
+                    <p className="font-bold text-xl text-white/50">You haven't made any comments yet.</p>
                   </div>
                 )}
               </div>
@@ -455,74 +459,54 @@ const Profile: React.FC = () => {
 
             {activeTab === 'stats' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-card p-8 rounded-3xl border border-border shadow-sm text-center group hover:border-primary/30 transition-all">
-                  <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                    <Video size={32} className="text-primary" />
+                {[
+                  { icon: Video, label: 'Total Videos', value: stats.videos },
+                  { icon: Play, label: 'Total Views', value: stats.views.toLocaleString() },
+                  { icon: BarChart2, label: 'Total Likes', value: stats.likes.toLocaleString() }
+                ].map((stat, i) => (
+                  <div key={i} className="bg-black/40 backdrop-blur-xl p-8 rounded-3xl border border-white/5 shadow-xl text-center relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="bg-gradient-to-br from-primary/20 to-primary/5 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-primary/20 shadow-[0_0_20px_rgba(var(--primary),0.1)] group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(var(--primary),0.3)] transition-all duration-500">
+                      <stat.icon size={36} className="text-white" />
+                    </div>
+                    <div className="text-5xl font-black text-white mb-2 tracking-tight">{stat.value}</div>
+                    <div className="text-primary text-[10px] font-black uppercase tracking-widest">{stat.label}</div>
                   </div>
-                  <div className="text-5xl font-black text-primary mb-2">{stats.videos}</div>
-                  <div className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Total Videos</div>
-                </div>
-                <div className="bg-card p-8 rounded-3xl border border-border shadow-sm text-center group hover:border-primary/30 transition-all">
-                  <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                    <Play size={32} className="text-primary" />
-                  </div>
-                  <div className="text-5xl font-black text-primary mb-2">{stats.views.toLocaleString()}</div>
-                  <div className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Total Views</div>
-                </div>
-                <div className="bg-card p-8 rounded-3xl border border-border shadow-sm text-center group hover:border-primary/30 transition-all">
-                  <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                    <BarChart2 size={32} className="text-primary" />
-                  </div>
-                  <div className="text-5xl font-black text-primary mb-2">{stats.likes.toLocaleString()}</div>
-                  <div className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">Total Likes</div>
-                </div>
+                ))}
               </div>
             )}
 
             {activeTab === 'settings' && (
-              <div className="bg-card p-10 rounded-3xl border border-border shadow-sm max-w-2xl mx-auto">
-                <div className="flex items-center gap-3 mb-10">
-                  <div className="bg-primary p-2.5 rounded-2xl">
+              <div className="bg-black/40 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] border border-white/5 shadow-2xl max-w-2xl mx-auto relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] -z-10" />
+                
+                <div className="flex items-center gap-4 mb-10 pb-8 border-b border-white/5">
+                  <div className="bg-gradient-to-br from-primary to-pink-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(255,20,147,0.3)]">
                     <Settings size={28} className="text-white" />
                   </div>
-                  <h3 className="text-2xl font-black tracking-tight">Profile Settings</h3>
+                  <h3 className="text-3xl font-black tracking-tight text-white">Profile Settings</h3>
                 </div>
                 
                 <div className="space-y-8">
-                  <div className="flex flex-col items-center gap-4 mb-8">
-                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                      <img referrerPolicy="no-referrer"   
-                        src={photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} 
-                        alt="Profile Preview" 
-                        className="w-28 h-28 rounded-3xl border-4 border-primary object-cover bg-muted shadow-xl"
-                        
-                      />
-                      <div className="absolute inset-0 bg-black/50 rounded-3xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera size={24} className="text-white" />
-                      </div>
-                    </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Click to change profile picture</p>
-                  </div>
-
                   <div className="grid grid-cols-1 gap-6">
                     <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-muted-foreground">Username</label>
+                      <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">Username</label>
                       <input 
                         type="text"
                         value={username} 
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="Choose a unique username"
-                        className="w-full bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all"
+                        className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all outline-none backdrop-blur-md"
                       />
                     </div>
 
                     {isAdmin ? (
                       <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-muted-foreground">Department / Office</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">Department / Office</label>
                         <select 
                           value={department} 
                           onChange={(e) => setDepartment(e.target.value)}
-                          className="w-full bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all appearance-none"
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary transition-all appearance-none backdrop-blur-md"
                         >
                           <option value="">Select Department</option>
                           {DEPARTMENTS.map(dept => (
@@ -532,11 +516,11 @@ const Profile: React.FC = () => {
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-muted-foreground">Level of Study</label>
+                        <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">Level of Study</label>
                         <select 
                           value={levelOfStudy} 
                           onChange={(e) => setLevelOfStudy(e.target.value)}
-                          className="w-full bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all appearance-none"
+                          className="w-full bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary transition-all appearance-none backdrop-blur-md"
                         >
                           <option value="Foundation">Foundation</option>
                           <option value="Diploma">Diploma</option>
@@ -548,7 +532,7 @@ const Profile: React.FC = () => {
                     )}
 
                     <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-muted-foreground">
+                      <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">
                         {isAdmin ? 'Responsibilities / Clubs Managed' : 'My Subjects'}
                       </label>
                       <div className="flex gap-3 mb-4">
@@ -556,7 +540,7 @@ const Profile: React.FC = () => {
                           <select 
                             value={newSubject} 
                             onChange={(e) => setNewSubject(e.target.value)}
-                            className="flex-1 bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all appearance-none"
+                            className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary transition-all appearance-none"
                           >
                             <option value="">Select a club you joined...</option>
                             {joinedClubs.map(c => <option key={c} value={c}>{c}</option>)}
@@ -567,22 +551,22 @@ const Profile: React.FC = () => {
                             value={newSubject} 
                             onChange={(e) => setNewSubject(e.target.value)}
                             placeholder="Add a subject..."
-                            className="flex-1 bg-muted/50 border border-border rounded-2xl px-5 py-4 text-foreground font-bold focus:outline-none focus:border-primary transition-all"
+                            className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary transition-all"
                           />
                         )}
                         <button 
                           onClick={addSubject}
-                          className="bg-primary text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                          className="bg-white/10 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-white/20 transition-all backdrop-blur-md border border-white/10"
                         >
                           Add
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {subjects.map(sub => (
-                          <span key={sub} className="bg-muted text-foreground px-4 py-2 rounded-xl text-xs flex items-center gap-2 border border-border font-bold">
+                          <span key={sub} className="bg-primary/20 text-white px-4 py-2 rounded-xl text-sm flex items-center gap-2 border border-primary/30 font-bold backdrop-blur-md">
                             {sub}
-                            <button onClick={() => removeSubject(sub)} className="text-muted-foreground hover:text-primary transition-colors">
-                              <X size={14} />
+                            <button onClick={() => removeSubject(sub)} className="text-gray-400 hover:text-white transition-colors bg-black/20 rounded-full p-1">
+                              <X size={12} />
                             </button>
                           </span>
                         ))}
@@ -590,49 +574,57 @@ const Profile: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="pt-10 border-t border-border space-y-4">
+                  <div className="pt-10 space-y-4">
                     <button 
                       onClick={handleSaveProfile}
                       disabled={saving}
-                      className="w-full bg-primary text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 disabled:opacity-50"
+                      className="w-full bg-gradient-to-r from-primary to-pink-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:opacity-90 transition-all shadow-[0_0_20px_rgba(255,20,147,0.4)] disabled:opacity-50"
                     >
-                      {saving ? 'Saving Changes...' : 'Save All Changes'}
+                      {saving ? 'Saving...' : 'Save Settings'}
                     </button>
 
                     <button 
                       onClick={handleDeleteProfile}
-                      className="w-full bg-red-500/10 text-red-500 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                      className="w-full bg-transparent text-gray-400 py-4 rounded-2xl font-bold text-sm hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
                     >
-                      Delete Profile
+                      Delete Account
                     </button>
                   </div>
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
+      </div>
+
+      {/* Floating Action Button */}
+      <div className="fixed bottom-8 right-8 z-40">
+        <button className="bg-gradient-to-tr from-primary to-pink-600 p-4 rounded-full text-white shadow-[0_0_30px_rgba(255,20,147,0.5)] hover:scale-110 transition-transform duration-300 group">
+          <MessageSquare size={24} className="group-hover:animate-pulse" />
+        </button>
       </div>
 
       {/* Delete Profile Modal */}
       {showDeleteProfileModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <h3 className="text-xl font-black mb-4 text-red-500">Delete Profile</h3>
-            <p className="text-muted-foreground mb-8">
-              Are you sure you want to delete your profile? This action is permanent and will remove all your data.
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-red-500" />
+            <h3 className="text-2xl font-black mb-4 text-white">Delete Profile?</h3>
+            <p className="text-gray-400 mb-8 leading-relaxed">
+              Are you sure you want to delete your profile? This action is permanent and will remove all your cinematic moments.
             </p>
             <div className="flex gap-4">
               <button 
                 onClick={() => setShowDeleteProfileModal(false)}
-                className="flex-1 bg-muted text-foreground py-3 rounded-xl font-bold hover:bg-muted/80 transition-colors"
+                className="flex-1 bg-white/5 text-white py-3 rounded-xl font-bold hover:bg-white/10 transition-colors border border-white/5"
               >
                 Cancel
               </button>
               <button 
                 onClick={confirmDeleteProfile}
-                className="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                className="flex-1 bg-red-500/20 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white py-3 rounded-xl font-bold transition-colors shadow-[0_0_20px_rgba(239,68,68,0.2)]"
               >
-                Delete Profile
+                Delete Forever
               </button>
             </div>
           </div>

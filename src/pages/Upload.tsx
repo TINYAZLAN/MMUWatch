@@ -4,7 +4,7 @@ import { db, storage } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles, Settings } from 'lucide-react';
+import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles, Settings, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -39,6 +39,8 @@ const Upload: React.FC = () => {
   const [thumbTime, setThumbTime] = useState<number>(0);
   const [uploadMethod, setUploadMethod] = useState<'file' | 'youtube'>('file');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [showThumbnailOptions, setShowThumbnailOptions] = useState(false);
+  const [thumbnailUrlInput, setThumbnailUrlInput] = useState('');
   
   const [formData, setFormData] = useState({
     title: '',
@@ -412,6 +414,48 @@ const Upload: React.FC = () => {
         createdAt: serverTimestamp()
       });
 
+      // Notify the uploader
+      await addDoc(collection(db, 'notifications'), {
+        userId: user.uid,
+        type: 'system',
+        message: 'Your video was successfully uploaded!',
+        link: `/watch/${docRef.id}`,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+
+      // Notify friends
+      if (profile?.friends && Array.isArray(profile.friends)) {
+        for (const friendId of profile.friends) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: friendId,
+            type: 'video_upload',
+            message: `${profile?.username || user.displayName} uploaded a new video: "${formData.title}"`,
+            senderId: user.uid,
+            senderName: profile?.username || user.displayName,
+            senderAvatar: user.photoURL,
+            link: `/watch/${docRef.id}`,
+            read: false,
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+
+      // Check if an assignment was done
+      const completedAssignments = assignments.filter(a => a.done);
+      if (completedAssignments.length > 0) {
+        for (const assignment of completedAssignments) {
+          await addDoc(collection(db, 'notifications'), {
+            userId: user.uid,
+            type: 'assignment_complete',
+            message: `You completed the assignment: ${assignment.name}`,
+            link: `/watch/${docRef.id}`,
+            read: false,
+            createdAt: serverTimestamp()
+          });
+        }
+      }
+
       toast.success('Video uploaded successfully!');
       navigate(`/watch/${docRef.id}`);
     } catch (error) {
@@ -540,18 +584,17 @@ const Upload: React.FC = () => {
                   <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Video Thumbnail</label>
                   <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2">
-                      <div className="w-40 h-24 bg-muted border border-border rounded-xl overflow-hidden flex items-center justify-center relative">
+                      <div 
+                        className="w-40 h-24 bg-muted border border-border rounded-xl overflow-hidden flex items-center justify-center relative cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => setShowThumbnailOptions(true)}
+                        role="button"
+                        tabIndex={0}
+                      >
                         {thumbnailPreview ? (
                           <img referrerPolicy="no-referrer" src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="text-muted-foreground/40 text-xs text-center p-2">No thumbnail selected</div>
+                          <div className="text-muted-foreground/40 text-xs text-center p-2">Click to set thumbnail</div>
                         )}
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleThumbnailChange}
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                        />
                       </div>
                       {videoObjectUrl && !thumbnailFile && videoDuration > 0 && (
                         <div className="w-40 flex flex-col gap-1">
@@ -570,10 +613,9 @@ const Upload: React.FC = () => {
                     </div>
                     <div className="flex-1">
                       <p className="text-xs text-muted-foreground mb-2">Upload a custom thumbnail for your video, or select a frame. Recommended size: 1280x720.</p>
-                      <label className="bg-muted hover:bg-muted/80 text-foreground px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-colors border border-border">
+                      <button type="button" onClick={() => setShowThumbnailOptions(true)} className="bg-muted hover:bg-muted/80 text-foreground px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-colors border border-border">
                         Choose Image
-                        <input type="file" accept="image/*" onChange={handleThumbnailChange} className="hidden" />
-                      </label>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -753,6 +795,62 @@ const Upload: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showThumbnailOptions && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-sm rounded-3xl p-6 border border-border shadow-2xl relative">
+            <button 
+              onClick={() => setShowThumbnailOptions(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="text-xl font-bold mb-4">Set Thumbnail</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Upload from Device</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => { handleThumbnailChange(e); setShowThumbnailOptions(false); }}
+                  className="w-full text-sm"
+                />
+              </div>
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink-0 mx-4 text-muted-foreground text-xs uppercase font-bold">Or</span>
+                <div className="flex-grow border-t border-border"></div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Paste Image URL</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="url" 
+                    value={thumbnailUrlInput}
+                    onChange={(e) => setThumbnailUrlInput(e.target.value)}
+                    className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary text-foreground"
+                    placeholder="https://..."
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      if(thumbnailUrlInput) {
+                         setThumbnailPreview(thumbnailUrlInput); 
+                         setThumbnailFile(null);
+                         setShowThumbnailOptions(false);
+                      }
+                    }}
+                    className="bg-primary text-white px-3 py-2 rounded-xl text-sm font-bold hover:bg-primary/90"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

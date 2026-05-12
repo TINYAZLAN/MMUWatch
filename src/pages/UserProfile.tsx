@@ -213,26 +213,39 @@ const UserProfile: React.FC = () => {
   };
 
   const handleInvite = async () => {
-    if (!user || !userId) {
+    if (!user || (!userId && profile?.uid)) {
        toast.error("Please sign in");
        return;
     }
+    const targetUserId = userId || profile?.uid;
+    if (!targetUserId) return;
     try {
-      const myRef = doc(db, 'users', user.uid);
-      const theirRef = doc(db, 'users', userId);
+      const theirRef = doc(db, 'users', targetUserId);
       
-      await updateDoc(myRef, {
-        friends: arrayUnion(userId)
-      });
-      await updateDoc(theirRef, {
-        friends: arrayUnion(user.uid)
-      });
-
-      setProfile(prev => prev ? { ...prev, friends: [...(prev.friends || []), user.uid] } : null);
-      
-      toast.success("Added to Friends!", {
-        description: "You can now chat privately."
-      });
+      // Keep existing logic to remove if already friends? Wait, no, button is Add Friend. Let's just send request.
+      if (isFriend) {
+        const myRef = doc(db, 'users', user.uid);
+        await updateDoc(myRef, {
+          friends: arrayRemove(targetUserId)
+        });
+        await updateDoc(theirRef, {
+          friends: arrayRemove(user.uid)
+        });
+        setProfile(prev => prev ? { ...prev, friends: prev.friends?.filter(id => id !== user.uid) } : null);
+        toast.success("Removed from Friends");
+      } else {
+        await addDoc(collection(db, 'notifications'), {
+          userId: targetUserId,
+          type: 'friend_request',
+          message: `${myProfile?.username || user.displayName || 'Someone'} sent you a friend request.`,
+          senderId: user.uid,
+          senderName: myProfile?.username || user.displayName,
+          senderAvatar: user.photoURL,
+          read: false,
+          createdAt: serverTimestamp()
+        });
+        toast.success("Friend request sent!");
+      }
     } catch (error) {
       console.error("Error adding friend:", error);
       toast.error("Failed to add friend");

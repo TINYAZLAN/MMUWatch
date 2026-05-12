@@ -11,14 +11,10 @@ export const LoungeRightSidebar: React.FC<LoungeRightSidebarProps> = ({ profile,
   const [filter, setFilter] = useState<'All' | 'Online' | 'Offline'>('All');
   const navigate = useNavigate();
 
-  // Mocking offline users for now (anyone in friends not in onlineUsers)
-  const allFriends = profile?.friends || [];
-  
-  // Since we only get top 10 as online in the community page effect, we'll pretend some are offline.
   // Ideally, we'd have a real presence system.
-  const displayUsers = onlineUsers.map((u, i) => ({
+  const displayUsers = onlineUsers.map((u) => ({
     ...u,
-    isOnline: i % 3 !== 0 // Just mock some to be offline 
+    isOnline: true 
   }));
 
   const filteredUsers = displayUsers.filter(u => {

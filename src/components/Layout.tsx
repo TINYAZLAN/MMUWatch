@@ -4,7 +4,7 @@ import { Search, User, Bell, Video, Home, Compass, GraduationCap, Users, Upload,
 import { useAuth } from '../AuthProvider';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, where, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, where, updateDoc, doc, getDoc, arrayUnion } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { cn } from '../lib/utils';
 import { Message } from '../types';
@@ -49,6 +49,42 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => unsubscribe();
   }, [user]);
 
+  const handleAcceptFriend = async (e: React.MouseEvent, n: any) => {
+    e.stopPropagation();
+    if (!user || !n.senderId) return;
+    try {
+      const myRef = doc(db, 'users', user.uid);
+      const theirRef = doc(db, 'users', n.senderId);
+      
+      await updateDoc(myRef, { friends: arrayUnion(n.senderId) });
+      await updateDoc(theirRef, { friends: arrayUnion(user.uid) });
+      await updateDoc(doc(db, 'notifications', n.id), { read: true, type: 'friend_accept' });
+      
+      toast.success("Friend request accepted!");
+    } catch (error) {
+      console.error("Error accepting friend:", error);
+      toast.error("Failed to accept friend request");
+    }
+  };
+
+  const renderNotificationText = (n: any) => {
+    if (n.message) return n.message;
+    return `${n.fromName} ${n.type === 'like' ? 'liked your video' : n.type === 'comment' ? 'commented on your video' : 'replied to your comment'}`;
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    if (!n.read) {
+      await updateDoc(doc(db, 'notifications', n.id), { read: true });
+    }
+    setIsNotificationsOpen(false);
+    if (n.link) {
+      navigate(n.link);
+    } else if (n.videoId) {
+      navigate(`/watch/${n.videoId}`);
+    } else if (n.senderId && n.type === 'friend_request') {
+      navigate(`/channel/${n.senderId}`);
+    }
+  };
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -148,21 +184,29 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         notifications.map(n => (
                           <div 
                             key={n.id} 
-                            onClick={async () => {
-                              if (!n.read) {
-                                await updateDoc(doc(db, 'notifications', n.id), { read: true });
-                              }
-                              setIsNotificationsOpen(false);
-                              navigate(`/watch/${n.videoId}`);
-                            }}
+                            onClick={() => handleNotificationClick(n)}
                             className={cn(
                               "p-3 rounded-lg text-sm transition-colors cursor-pointer", 
                               n.read ? "opacity-60" : "bg-muted/50",
                               "hover:bg-muted"
                             )}
                           >
-                            <p className="font-medium">{n.fromName} {n.type === 'like' ? 'liked your video' : n.type === 'comment' ? 'commented on your video' : 'replied to your comment'}</p>
-                            <p className={cn("text-xs mt-1 text-muted-foreground")}>{n.videoTitle}</p>
+                            <div className="flex gap-3">
+                              {n.senderAvatar && <img src={n.senderAvatar} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-[13px]">{renderNotificationText(n)}</p>
+                                {n.videoTitle && <p className={cn("text-xs mt-1 text-muted-foreground truncate")}>{n.videoTitle}</p>}
+                                
+                                {n.type === 'friend_request' && !n.read && (
+                                  <button
+                                    onClick={(e) => handleAcceptFriend(e, n)}
+                                    className="mt-2 text-xs bg-primary text-white px-3 py-1.5 rounded-full font-bold hover:bg-primary/90"
+                                  >
+                                    Accept
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         ))
                       ) : (

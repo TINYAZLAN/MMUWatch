@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Hash, Users, ChevronRight, MapPin, Loader2 } from 'lucide-react';
-import { HOT_TOPICS, SUGGESTED_CLUBS } from './mockData';
+import { Calendar, ChevronRight, MapPin, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { useAuth } from '../../AuthProvider';
-import { toast } from 'sonner';
 
 export const RightSidebar: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,23 +20,6 @@ export const RightSidebar: React.FC = () => {
     });
     return () => unsub();
   }, []);
-
-  const handleJoinClub = async (clubName: string) => {
-    if (!user) {
-      toast.error("Please sign in to interact with clubs.");
-      return;
-    }
-    try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        joinedClubs: arrayUnion(clubName)
-      });
-      toast.success(`Added ${clubName} to chats!`);
-      // Since there is no dedicated chats page, we simulate adding to chat feature
-    } catch (error) {
-      toast.error("Failed to add club to chat.");
-      console.error(error);
-    }
-  };
 
   return (
     <aside className="hidden lg:flex w-64 xl:w-80 flex-col gap-6 shrink-0 sticky top-24 pb-12">
@@ -87,51 +66,6 @@ export const RightSidebar: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Hot Topics */}
-      <div className="bg-[#0f1115] border border-white/5 rounded-3xl p-5 shadow-2xl">
-        <h3 className="font-bold text-white flex items-center gap-2 mb-4">
-          <Hash size={18} className="text-blue-500" />
-          Hot Topics
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {HOT_TOPICS.map((topic, i) => (
-            <span 
-              key={i} 
-              className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-white/70 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10 cursor-pointer transition-all"
-            >
-              {topic}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Suggested Clubs */}
-      <div className="bg-[#0f1115] border border-white/5 rounded-3xl p-5 shadow-2xl">
-        <h3 className="font-bold text-white flex items-center gap-2 mb-4">
-          <Users size={18} className="text-purple-500" />
-          Suggested Clubs
-        </h3>
-        <div className="flex flex-col gap-4">
-          {SUGGESTED_CLUBS.map((club) => (
-            <div key={club.id} onClick={() => handleJoinClub(club.name)} className="flex items-center justify-between group cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center border border-white/10 font-bold text-white/80 group-hover:border-purple-500/50 transition-all">
-                  {club.name.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white/90 group-hover:text-white transition-colors">{club.name}</h4>
-                  <p className="text-[10px] text-muted-foreground">{club.members} members</p>
-                </div>
-              </div>
-              <button className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center hover:bg-purple-500 hover:text-white transition-colors">
-                <Users size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
     </aside>
   );
 };

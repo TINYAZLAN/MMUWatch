@@ -1,7 +1,14 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
-import { NAVIGATION_ITEMS } from './mockData';
+import { Home, Users, Calendar, MessageCircle } from 'lucide-react';
+
+const NAVIGATION_ITEMS: { icon: any; label: string; id: string; badge?: string }[] = [
+  { icon: Home, label: 'Posts', id: 'home' },
+  { icon: Users, label: 'Clubs', id: 'clubs' },
+  { icon: Calendar, label: 'All Events', id: 'events' },
+  { icon: MessageCircle, label: 'Lounge', id: 'friends' },
+];
 import { useNavigate } from 'react-router-dom';
 
 interface LeftSidebarProps {

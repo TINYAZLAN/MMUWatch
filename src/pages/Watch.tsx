@@ -355,17 +355,20 @@ const Watch: React.FC = () => {
         replies: arrayUnion(replyData)
       });
 
-      // Mock notification
-      await addDoc(collection(db, 'notifications'), {
-        userId: comments.find(c => c.id === commentId)?.userId,
-        fromId: user.uid,
-        fromName: profile?.username || 'Someone',
-        type: 'reply',
-        videoId: video.id,
-        videoTitle: video.title,
-        createdAt: serverTimestamp(),
-        read: false
-      });
+      // Notification
+      const commentOwnerId = comments.find(c => c.id === commentId)?.userId;
+      if (commentOwnerId && commentOwnerId !== user.uid) {
+        await addDoc(collection(db, 'notifications'), {
+          userId: commentOwnerId,
+          fromId: user.uid,
+          fromName: profile?.username || 'Someone',
+          type: 'reply',
+          videoId: video.id,
+          videoTitle: video.title,
+          createdAt: serverTimestamp(),
+          read: false
+        });
+      }
 
       setReplyTo(null);
       setReplyText('');
@@ -418,14 +421,6 @@ const Watch: React.FC = () => {
                 const viewerDoc = await getDoc(viewerDocRef);
                 if (!viewerDoc.exists()) {
                   await setDoc(viewerDocRef, { viewedAt: serverTimestamp() });
-                  await updateDoc(docRef, { views: increment(1) });
-                }
-              } else {
-                // Anonymous user, check localStorage
-                const viewedVideos = JSON.parse(localStorage.getItem('viewedVideos') || '[]');
-                if (!viewedVideos.includes(routeVideoId)) {
-                  viewedVideos.push(routeVideoId);
-                  localStorage.setItem('viewedVideos', JSON.stringify(viewedVideos));
                   await updateDoc(docRef, { views: increment(1) });
                 }
               }

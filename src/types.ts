@@ -187,3 +187,18 @@ export interface UnifiedSearchResult {
   content?: string;
   keyword?: string;
 }
+
+export interface AppNotification {
+  id: string;
+  type: 'friend_request' | 'friend_accept' | 'video_upload' | 'assignment_complete' | 'system' | 'like' | 'comment' | 'reply' | 'follow';
+  message: string;
+  senderId?: string;
+  senderName?: string;
+  senderAvatar?: string;
+  link?: string;
+  videoId?: string;
+  videoTitle?: string;
+  fromName?: string;
+  read: boolean;
+  createdAt: any;
+}
