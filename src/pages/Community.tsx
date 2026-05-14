@@ -308,7 +308,7 @@ const Community: React.FC = () => {
                    const isManagingClub = isAdmin || (profile?.subjects || []).includes(club.name);
                    const isJoined = (profile?.joinedClubs || []).includes(club.name);
                    return (
-                   <div key={club.id} className="bg-[#0f1115] border border-white/5 rounded-[1.5rem] p-5 shadow-2xl flex flex-col gap-4">
+                   <div key={club.id} className="bg-[#0f1115] border border-white/5 rounded-[1.5rem] p-5 shadow-2xl flex flex-col gap-4 hover:scale-[1.02] hover:border-primary/50 transition-all duration-300">
                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                        <div className="flex items-center gap-4 flex-1">
                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border border-primary/20 text-xl font-black text-white shrink-0">

@@ -32,11 +32,11 @@ export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Class logic
-  const DEFAULT_SUBJECTS = {
-    'Business & Accounting (FOB)': ['Accounting 101', 'Business Admin', 'Marketing'],
-    'Engineering (FET)': ['Circuit Analysis', 'Engineering Math', 'Electronics'],
-    'Information Technology & Computer Science (FIST)': ['Data Structures', 'Web Development', 'Software Engineering'],
-    'Law (FOL)': ['Business Law', 'Criminal Law']
+  const DEFAULT_SUBJECTS: Record<string, string[]> = {
+    'Faculty of Business (FOB)': ['Accounting 101', 'Business Admin', 'Marketing'],
+    'Faculty of Engineering and Technology (FET)': ['Circuit Analysis', 'Engineering Math', 'Electronics'],
+    'Faculty of Information Science and Technology (FIST)': ['Data Structures', 'Web Development', 'Software Engineering'],
+    'Faculty of Law (FOL)': ['Business Law', 'Criminal Law']
   };
 
   const [allClubs, setAllClubs] = useState<any[]>([]);
@@ -68,7 +68,16 @@ export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => 
   useEffect(() => {
     // Select default channel based on tab
     if (activeTab === 'Class') {
-      const defaultChannel = isAdmin ? DEFAULT_SUBJECTS['Business & Accounting (FOB)'][0] : (profile?.subjects?.[0] || 'General Class');
+      let defaultChannel = 'General Class';
+      if (isAdmin) {
+        defaultChannel = DEFAULT_SUBJECTS['Faculty of Business (FOB)'][0];
+      } else {
+        if (profile?.subjects && profile.subjects.length > 0) {
+          defaultChannel = profile.subjects[0];
+        } else if (profile?.faculty && DEFAULT_SUBJECTS[profile.faculty]) {
+          defaultChannel = DEFAULT_SUBJECTS[profile.faculty][0];
+        }
+      }
       setActiveChannel(defaultChannel);
     }
     if (activeTab === 'Clubs') setActiveChannel(''); // Require clicking a club
@@ -196,7 +205,9 @@ export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => 
           
           {activeTab === 'Class' && (
             <div className="flex flex-col gap-4 pb-4">
-              {Object.entries(DEFAULT_SUBJECTS).map(([faculty, subjects]) => (
+              {Object.entries(DEFAULT_SUBJECTS)
+                .filter(([faculty]) => isAdmin || !profile?.faculty || profile.faculty === faculty)
+                .map(([faculty, subjects]) => (
                 <div key={faculty} className="flex flex-col gap-1">
                   <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-2 mb-1">{faculty}</h4>
                   {subjects.map(ch => (

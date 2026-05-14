@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthProvider';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { signOut, updateProfile } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
@@ -128,13 +128,44 @@ const Profile: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) { // 1MB limit for base64
-        toast.error("Image too large", { description: "Please select an image under 1MB." });
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error("Image too large", { description: "Please select an image under 5MB." });
         return;
       }
+      
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoURL(reader.result as string);
+        // Compress image using canvas to ensure it fits in Firestore (1MB limit)
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.8 quality
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setPhotoURL(dataUrl);
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -146,6 +177,13 @@ const Profile: React.FC = () => {
     try {
       const validRoles = ['viewer', 'creator', 'admin'];
       const userRole = validRoles.includes(profile?.role || '') ? profile?.role : 'viewer';
+
+      // Update Firebase Auth profile for redundancy
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, {
+          photoURL: photoURL || undefined
+        });
+      }
 
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid,
@@ -167,6 +205,20 @@ const Profile: React.FC = () => {
         department: department || '',
         photoURL: photoURL || ''
       }, { merge: true });
+
+      // Update community posts to reflect image change
+      try {
+        const postsQ = query(collection(db, 'communityPosts'), where('creatorId', '==', user.uid));
+        const postsSnap = await getDocs(postsQ);
+        for (const postDoc of postsSnap.docs) {
+          await updateDoc(postDoc.ref, {
+            creatorAvatar: photoURL || '',
+            creatorPhotoURL: photoURL || ''
+          });
+        }
+      } catch (e) {
+        console.error("Error updating community posts:", e);
+      }
 
       toast.success("Profile updated successfully!");
     } catch (error) {
@@ -489,6 +541,26 @@ const Profile: React.FC = () => {
                 
                 <div className="space-y-8">
                   <div className="grid grid-cols-1 gap-6">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">Profile Picture Link</label>
+                      <div className="flex gap-3">
+                        <input 
+                          type="text"
+                          value={photoURL?.startsWith('data:') ? '' : (photoURL || '')} 
+                          onChange={(e) => setPhotoURL(e.target.value)}
+                          placeholder="Paste an image URL here..."
+                          className="flex-1 bg-black/50 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all outline-none backdrop-blur-md"
+                        />
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="bg-primary/20 text-white px-6 py-4 rounded-2xl font-bold text-sm hover:bg-primary/30 transition-all border border-primary/30"
+                        >
+                          Upload File
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-2 pl-2 uppercase tracking-widest font-bold">Use a link to save storage space or upload a file (max 5MB)</p>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-widest mb-3 text-gray-400 pl-2">Username</label>
                       <input 

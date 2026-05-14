@@ -433,7 +433,7 @@ const Upload: React.FC = () => {
             message: `${profile?.username || user.displayName} uploaded a new video: "${formData.title}"`,
             senderId: user.uid,
             senderName: profile?.username || user.displayName,
-            senderAvatar: user.photoURL,
+            senderAvatar: profile?.photoURL || user.photoURL,
             link: `/watch/${docRef.id}`,
             read: false,
             createdAt: serverTimestamp()

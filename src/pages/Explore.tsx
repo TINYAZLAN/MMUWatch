@@ -22,6 +22,7 @@ const Explore: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [isAddingBuzz, setIsAddingBuzz] = useState(false);
   const [selectedBuzz, setSelectedBuzz] = useState<BuzzNews | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -41,6 +42,12 @@ const Explore: React.FC = () => {
     price: '',
     campus: 'Cyberjaya' as 'Melaka' | 'Cyberjaya',
     imageURL: ''
+  });
+  const [newBuzz, setNewBuzz] = useState({
+    title: '',
+    summary: '',
+    imageURL: '',
+    link: ''
   });
 
   const isAdmin = profile?.role === 'admin' || user?.email === 'fcazlan@gmail.com';
@@ -173,6 +180,24 @@ const Explore: React.FC = () => {
     } catch (error) {
       console.error("Error adding product:", error);
       toast.error("Failed to add product");
+    }
+  };
+
+  const handleAddBuzz = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    try {
+      await addDoc(collection(db, 'buzzNews'), {
+        ...newBuzz,
+        createdAt: serverTimestamp()
+      });
+      toast.success("Buzz news added successfully!");
+      setIsAddingBuzz(false);
+      setNewBuzz({ title: '', summary: '', imageURL: '', link: '' });
+    } catch (error) {
+      console.error("Error adding buzz news:", error);
+      toast.error("Failed to add buzz news");
     }
   };
 
@@ -389,6 +414,14 @@ const Explore: React.FC = () => {
               <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
                 <Star className="text-yellow-500" /> Hive Buzz
               </h2>
+              {isAdmin && (
+                <button 
+                  onClick={() => setIsAddingBuzz(true)}
+                  className="flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-full font-bold hover:bg-primary/90 transition-colors text-xs"
+                >
+                  <PlusCircle size={14} /> Add Buzz
+                </button>
+              )}
             </div>
             
             <div className="space-y-6 overflow-y-auto pr-2 flex-1 custom-scrollbar">
@@ -648,6 +681,66 @@ const Explore: React.FC = () => {
               <div className="mt-4">
                 <button type="submit" className="w-full bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-primary/90 transition-colors">
                   List Product
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAddingBuzz && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-2xl rounded-3xl p-8 border border-border shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setIsAddingBuzz(false)}
+              className="absolute top-6 right-6 text-muted-foreground hover:text-foreground"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-2xl font-black mb-6">Add New Buzz News</h2>
+            <form onSubmit={handleAddBuzz} className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Title</label>
+                <input 
+                  type="text" 
+                  value={newBuzz.title}
+                  onChange={e => setNewBuzz({...newBuzz, title: e.target.value})}
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Summary</label>
+                <textarea 
+                  value={newBuzz.summary}
+                  onChange={e => setNewBuzz({...newBuzz, summary: e.target.value})}
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all resize-none"
+                  rows={3}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Image URL</label>
+                <input 
+                  type="url" 
+                  value={newBuzz.imageURL}
+                  onChange={e => setNewBuzz({...newBuzz, imageURL: e.target.value})}
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Link (Optional)</label>
+                <input 
+                  type="url" 
+                  value={newBuzz.link}
+                  onChange={e => setNewBuzz({...newBuzz, link: e.target.value})}
+                  className="w-full bg-muted border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all"
+                />
+              </div>
+              <div className="mt-4">
+                <button type="submit" className="w-full bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-primary/90 transition-colors">
+                  Publish News
                 </button>
               </div>
             </form>

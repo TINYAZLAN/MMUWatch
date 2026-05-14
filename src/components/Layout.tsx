@@ -225,7 +225,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   }}
                   className={cn("w-9 h-9 rounded-full overflow-hidden border-2 transition-colors border-border hover:border-primary")}
                 >
-                  <img referrerPolicy="no-referrer" src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="Profile" />
+                  <img referrerPolicy="no-referrer" src={profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="Profile" className="w-full h-full object-cover" />
                 </button>
                 
                 {isProfileOpen && (

@@ -240,7 +240,7 @@ const UserProfile: React.FC = () => {
           message: `${myProfile?.username || user.displayName || 'Someone'} sent you a friend request.`,
           senderId: user.uid,
           senderName: myProfile?.username || user.displayName,
-          senderAvatar: user.photoURL,
+          senderAvatar: myProfile?.photoURL || user.photoURL,
           read: false,
           createdAt: serverTimestamp()
         });
