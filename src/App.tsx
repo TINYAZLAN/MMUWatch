@@ -17,6 +17,8 @@ import UserProfile from './pages/UserProfile';
 import Login from './pages/Login';
 import Credits from './pages/Credits';
 
+import { MMULoading } from './components/MMULoading';
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   
@@ -29,7 +31,7 @@ const ScrollToTop = () => {
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, profile, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <MMULoading text="Authenticating..." />;
   if (!user) return <Navigate to="/" />;
   
   if (!profile?.studentId) return <Navigate to="/onboarding" />;
@@ -40,7 +42,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
-  if (loading) return null;
+  if (loading) return <MMULoading text="Warming up..." />;
   
   // If user is logged in but hasn't completed onboarding, force them to onboarding page
   // unless they are already on the onboarding page

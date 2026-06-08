@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import { UserProfile as UserProfileType, VideoMetadata } from '../types';
 import { Play, Star, MessageCircle, UserPlus, CheckCircle2, Award, UserMinus, Trash2, MoreVertical, ShieldCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { MMULoading } from '../components/MMULoading';
 import { toast } from 'sonner';
 import { useAuth } from '../AuthProvider';
 import { cn } from '../lib/utils';
@@ -135,9 +136,16 @@ const UserProfile: React.FC = () => {
           }
         }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
 
-        const videosQ = query(collection(db, 'videos'), where('creatorId', '==', userId), orderBy('createdAt', 'desc'));
+        const videosQ = query(collection(db, 'videos'), where('creatorId', '==', userId));
         const videosSnapshot = await getDocs(videosQ);
         const videosData = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata));
+        
+        videosData.sort((a, b) => {
+          const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return timeB - timeA;
+        });
+
         setVideos(videosData);
 
       } catch (error) {
@@ -333,7 +341,7 @@ const UserProfile: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div></div>;
+    return <MMULoading text="Loading profile..." />;
   }
 
   if (!profile) {

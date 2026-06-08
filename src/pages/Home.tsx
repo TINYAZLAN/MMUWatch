@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, where, onSnapshot, startAfter, QueryDocumentSnapshot, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where, onSnapshot, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
@@ -33,10 +33,7 @@ const Home: React.FC = () => {
   
   const [videos, setVideos] = useState<VideoMetadata[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   
   const [featuredSettings, setFeaturedSettings] = useState<FeaturedSettings>(defaultFeatured);
   const [isEditingFeatured, setIsEditingFeatured] = useState(false);
@@ -89,56 +86,71 @@ const Home: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     setVideos([]);
-    setLastDoc(null);
-    setHasMore(true);
 
-    let q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(8));
-    if (activeCategory !== "All") {
-      q = query(collection(db, 'videos'), where('category', '==', activeCategory), orderBy('createdAt', 'desc'), limit(8));
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as VideoMetadata));
-      setVideos(videoData);
-      
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === 8);
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, 'videos');
-    });
-
-    return () => unsubscribe();
-  }, [activeCategory]);
-
-  const loadMore = async () => {
-    if (!lastDoc || !hasMore) return;
-    setLoadingMore(true);
-
-    try {
-      let q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(8));
+    const fetchVideos = async () => {
+      let q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(150));
       if (activeCategory !== "All") {
-        q = query(collection(db, 'videos'), where('category', '==', activeCategory), orderBy('createdAt', 'desc'), startAfter(lastDoc), limit(8));
+        // Drop orderBy to prevent composite index requirement in Firestore
+        q = query(collection(db, 'videos'), where('category', '==', activeCategory));
       }
 
-      const snapshot = await getDocs(q);
-      const newVideos = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as VideoMetadata));
-      
-      setVideos(prev => {
-        const existingIds = new Set(prev.map(v => v.id));
-        const uniqueNew = newVideos.filter(v => !existingIds.has(v.id));
-        return [...prev, ...uniqueNew];
-      });
-      
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === 8);
-    } catch (error) {
-      console.error("Error loading more videos:", error);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+      try {
+        const snapshot = await getDocs(q);
+        const videoData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as VideoMetadata));
+        
+        // Advanced Algorithm System
+        const scoredVideos = videoData.map(video => {
+          let score = 0;
+          
+          const views = video.views || 0;
+          const likes = video.likes || 0;
+          
+          // 1. Engagement & Popularity
+          score += views * 0.5;
+          score += likes * 5.0; // Likes are worth much more than views
+          
+          if (views > 0) {
+            const likeRatio = likes / views;
+            score += (likeRatio * 100); // Massive boost for high like-ratio videos
+          }
+          
+          // 2. Velocity / Recency Decay
+          if (video.createdAt) {
+            const videoDate = typeof video.createdAt.toDate === 'function' ? video.createdAt.toDate() : new Date(video.createdAt);
+            const ageInHours = (new Date().getTime() - videoDate.getTime()) / (1000 * 60 * 60);
+            
+            // Decays heavily after 48 hours, keeping the feed fresh
+            const recencyBonus = Math.max(0, 200 * Math.exp(-ageInHours / 48)); 
+            score += recencyBonus;
+          }
+          
+          // 3. Personalization Affinity
+          if (profile?.faculty && video.creatorFaculty === profile.faculty) {
+            score += 50; // High affinity for same-faculty content
+          }
+
+          // 4. Serendipity (Exploration factor)
+          score += (Math.random() * 40); // Random variance to shake up the feed
+          
+          return { video, score };
+        });
+
+        // Sort by algorithmic score
+        const sorted = scoredVideos
+          .sort((a, b) => b.score - a.score)
+          .map(item => item.video)
+          .slice(0, 20); // Pick top 20 best suited for user
+          
+        setVideos(sorted);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'videos');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVideos();
+  }, [activeCategory, profile]);
 
   const handleSaveFeatured = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,18 +305,6 @@ const Home: React.FC = () => {
             </div>
           )}
         </div>
-
-        {hasMore && (
-          <div className="flex justify-center pt-8">
-            <button 
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="flex items-center gap-2 bg-card border border-border hover:bg-muted text-foreground px-8 py-3 rounded-full font-bold transition-all disabled:opacity-50 shadow-sm"
-            >
-              {loadingMore ? <Loader2 className="animate-spin" size={20} /> : "Load More Content"}
-            </button>
-          </div>
-        )}
       </section>
 
       {/* Trending Section */}

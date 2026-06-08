@@ -13,16 +13,6 @@ interface LoungeMiddleProps {
 }
 
 export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => {
-  if (!user || !profile) {
-    return (
-      <div className="flex flex-col h-[75vh] w-full bg-[#15171e] rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden items-center justify-center p-8 text-center">
-        <LogIn size={48} className="text-primary opacity-50 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Login Required</h2>
-        <p className="text-muted-foreground">Please sign in to access the Student Lounge and chat with friends.</p>
-      </div>
-    );
-  }
-
   const [activeTab, setActiveTab] = useState<'Class' | 'Clubs' | 'Friends'>('Class');
   
   // States for Chat
@@ -30,6 +20,18 @@ export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // States for data
+  const [friendsProfiles, setFriendsProfiles] = useState<any[]>([]);
+  const [activePrivateChat, setActivePrivateChat] = useState<any>(null);
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Removed early return
 
   // Class logic
   const DEFAULT_SUBJECTS: Record<string, string[]> = {
@@ -179,8 +181,18 @@ export const LoungeMiddle: React.FC<LoungeMiddleProps> = ({ user, profile }) => 
 
   const activeClubBg = activeTab === 'Clubs' && activeChannel ? clubChannels.find(c => c.id === activeChannel)?.bg || 'bg-card' : 'bg-card';
 
+  if (!user || !profile) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-180px)] w-full bg-[#15171e] rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden items-center justify-center p-8 text-center">
+        <LogIn size={48} className="text-primary opacity-50 mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-2">Login Required</h2>
+        <p className="text-muted-foreground">Please sign in to access the Student Lounge and chat with friends.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-[75vh] w-full bg-[#15171e] rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-180px)] w-full bg-[#15171e] rounded-[2rem] shadow-2xl border border-white/5 overflow-hidden">
       
       {/* Top Navigation Tabs */}
       <div className="flex bg-[#0f1115] p-2 border-b border-border">

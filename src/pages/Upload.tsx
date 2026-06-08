@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthProvider';
 import { db, storage } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Upload as UploadIcon, CheckCircle2, FileVideo, AlertCircle, Sparkles, Settings, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { MMUText } from '../components/MMUText';
@@ -26,6 +26,9 @@ const ffmpeg = new FFmpeg();
 const Upload: React.FC = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialTags = searchParams.get('tags') ? `#${searchParams.get('tags')}` : '';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadEta, setUploadEta] = useState<string | null>(null);
@@ -46,7 +49,7 @@ const Upload: React.FC = () => {
     title: '',
     description: '',
     category: '',
-    tags: new URLSearchParams(window.location.search).get('tags') || ''
+    tags: initialTags
   });
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -56,6 +59,58 @@ const Upload: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
 
   const [assignments, setAssignments] = useState<{ id: string, name: string, keyword: string, done: boolean, exampleFormat: string }[]>([]);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  // Check upload cooldown
+  React.useEffect(() => {
+    if (!user) return;
+    const checkCooldown = async () => {
+      try {
+        const q = query(
+          collection(db, 'videos'),
+          where('creatorId', '==', user.uid)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const videos = snapshot.docs.map(d => d.data());
+          // Sort locally by createdAt desc
+          videos.sort((a, b) => {
+             const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+             const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+             return timeB - timeA;
+          });
+          
+          const lastVideo = videos[0];
+          if (lastVideo.createdAt) {
+            const uploadedAt = lastVideo.createdAt.toDate ? lastVideo.createdAt.toDate() : new Date(lastVideo.createdAt);
+            const now = new Date();
+            const diffInMinutes = (now.getTime() - uploadedAt.getTime()) / (1000 * 60);
+            
+            if (diffInMinutes < 30) {
+              const remainingSecs = Math.floor((30 * 60) - ((now.getTime() - uploadedAt.getTime()) / 1000));
+              setCooldownRemaining(remainingSecs);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error checking cooldown cooldown:", e);
+      }
+    };
+    
+    checkCooldown();
+  }, [user]);
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (cooldownRemaining > 0) {
+      interval = setInterval(() => {
+        setCooldownRemaining(prev => prev > 0 ? prev - 1 : 0);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    }
+  }, [cooldownRemaining]);
 
   // Set initial subject if available
   React.useEffect(() => {
@@ -409,7 +464,7 @@ const Upload: React.FC = () => {
         likes: 0,
         dislikes: 0,
         category: formData.category || (selectedSubject === 'None' ? '' : selectedSubject),
-        tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: formData.tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean),
         duration: isNaN(videoDuration) ? 0 : Math.round(videoDuration),
         createdAt: serverTimestamp()
       });
@@ -485,6 +540,28 @@ const Upload: React.FC = () => {
         <AlertCircle size={64} className="text-[#E31837]" />
         <h2 className="text-2xl font-bold">Access Denied</h2>
         <p className="text-white/60"><MMUText text="Only MMU students and staff can upload videos." /></p>
+      </div>
+    );
+  }
+
+  if (cooldownRemaining > 0) {
+    const minutes = Math.floor(cooldownRemaining / 60);
+    const seconds = cooldownRemaining % 60;
+    return (
+      <div className="max-w-2xl mx-auto py-20 text-center space-y-6">
+        <div className="bg-muted p-12 rounded-3xl border border-border shadow-xl">
+          <AlertCircle size={64} className="text-primary mx-auto mb-6 opacity-80 animate-pulse" />
+          <h2 className="text-3xl font-black mb-4">Cooldown Active</h2>
+          <p className="text-lg text-muted-foreground mb-6">
+            To prevent spam, you must wait before uploading another video.
+          </p>
+          <div className="text-6xl font-mono font-bold text-white tracking-widest bg-black/50 py-6 rounded-2xl border border-white/5 shadow-inner">
+            {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+          </div>
+          <p className="mt-8 text-sm text-primary font-medium uppercase tracking-widest">
+            Please wait
+          </p>
+        </div>
       </div>
     );
   }

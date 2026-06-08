@@ -14,7 +14,7 @@ const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
-    faculty: FACULTIES[0],
+    faculty: '',
     levelOfStudy: 'Degree',
     department: DEPARTMENTS[0],
     studentId: '',
@@ -153,7 +153,9 @@ const Onboarding: React.FC = () => {
                 value={formData.faculty} 
                 onChange={handleChange}
                 className="w-full bg-muted border border-border rounded-lg p-3 text-foreground focus:outline-none focus:border-primary"
+                required
               >
+                <option value="" disabled>Select Faculty</option>
                 {FACULTIES.map(faculty => (
                   <option key={faculty} value={faculty}>{faculty}</option>
                 ))}

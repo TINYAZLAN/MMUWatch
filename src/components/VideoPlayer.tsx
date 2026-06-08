@@ -15,6 +15,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, poster, onPlay, o
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -25,10 +26,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, poster, onPlay, o
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => { setIsPlaying(true); onPlay && onPlay(); };
-    const handlePause = () => { setIsPlaying(false); onPause && onPause(); };
-    const handleEnded = () => { setIsPlaying(false); onEnded && onEnded(); };
-    const handleTimeUpdate = () => { setProgress((video.currentTime / video.duration) * 100); };
+    const handlePlay = () => { setIsPlaying(true); if (onPlay) onPlay(); };
+    const handlePause = () => { setIsPlaying(false); if (onPause) onPause(); };
+    const handleEnded = () => { setIsPlaying(false); if (onEnded) onEnded(); };
+    const handleTimeUpdate = () => { 
+      setProgress((video.currentTime / video.duration) * 100); 
+      setCurrentTime(video.currentTime);
+    };
     const handleLoadedMetadata = () => { setDuration(video.duration); };
 
     video.addEventListener('play', handlePlay);
@@ -94,6 +98,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, poster, onPlay, o
     if (videoRef.current) {
       videoRef.current.currentTime = time;
       setProgress(parseFloat(e.target.value));
+      setCurrentTime(time);
     }
   };
 
@@ -155,7 +160,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, poster, onPlay, o
           </button>
           
           <div className="flex items-center gap-2 text-white/80 text-xs font-mono flex-shrink-0 min-w-[40px]">
-            {formatTime(videoRef.current?.currentTime || 0)}
+            {formatTime(currentTime)}
           </div>
 
           <div className="flex-1 relative flex items-center h-5 group/slider cursor-pointer">

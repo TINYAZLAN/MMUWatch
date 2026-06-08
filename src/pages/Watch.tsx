@@ -6,6 +6,7 @@ import { VideoMetadata, Comment } from '../types';
 import { Heart, Share2, MoreHorizontal, CheckCircle2, Send, Sparkles, Clock, Play, MessageSquare, Bookmark, Reply, Award, X, Trash2, AlertCircle, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../AuthProvider';
+import { MMULoading } from '../components/MMULoading';
 import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import VideoCard from '../components/VideoCard';
@@ -397,6 +398,30 @@ const Watch: React.FC = () => {
     unsubscribeVideo = onSnapshot(docRef, async (snap) => {
       if (snap.exists()) {
         const videoData = { id: snap.id, ...snap.data() } as VideoMetadata;
+
+        // Check if YouTube video is unavailable and auto-remove
+        let isDeadVideo = false;
+        const ytMatch = videoData.videoURL?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+        if (ytMatch) {
+          const ytId = ytMatch[1];
+          try {
+            const res = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${ytId}`);
+            const data = await res.json();
+            if (data.error) {
+              isDeadVideo = true;
+              await deleteDoc(doc(db, 'videos', snap.id));
+              setError('Video is no longer available on YouTube and has been automatically removed.');
+              setVideo(null);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn("Could not verify YouTube video availability", e);
+          }
+        }
+        
+        if (isDeadVideo) return;
+
         setVideo(videoData);
         
         // Fetch uploader profile in real-time
@@ -507,25 +532,7 @@ const Watch: React.FC = () => {
   }, []);
 
   if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 px-4 pt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-2 hidden lg:block">
-            <div className="bg-muted animate-pulse h-64 rounded-3xl"></div>
-          </div>
-          <div className="lg:col-span-7 space-y-4">
-            <div className="w-full aspect-video bg-muted animate-pulse rounded-2xl"></div>
-            <div className="h-8 bg-muted animate-pulse rounded w-3/4"></div>
-            <div className="h-4 bg-muted animate-pulse rounded w-1/2"></div>
-          </div>
-          <div className="lg:col-span-3 hidden lg:block space-y-4">
-            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
-            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
-            <div className="h-32 bg-muted animate-pulse rounded-xl"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <MMULoading text="Loading video..." />;
   }
 
   const handleShare = () => {
@@ -798,9 +805,6 @@ const Watch: React.FC = () => {
                               <X size={16} />
                             </button>
                           )}
-                          <button className="text-muted-foreground hover:text-foreground transition-colors">
-                            <MoreHorizontal size={18} />
-                          </button>
                         </div>
                       </div>
                       <p className="text-base mt-2 text-foreground/90 leading-relaxed">{comment.text}</p>

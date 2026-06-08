@@ -5,6 +5,7 @@ import { RightSidebar } from '../components/community/RightSidebar';
 import { PostCard } from '../components/community/PostCard';
 import { CreatePostBox } from '../components/community/CreatePostBox';
 import { MMUText } from '../components/MMUText';
+import { MMULoading } from '../components/MMULoading';
 import { useAuth } from '../AuthProvider';
 import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, where, documentId, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -13,7 +14,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { LoungeMiddle } from '../components/community/lounge/LoungeMiddle';
-import { LoungeRightSidebar } from '../components/community/lounge/LoungeRightSidebar';
 
 const Community: React.FC = () => {
   const { user, profile } = useAuth();
@@ -134,9 +134,8 @@ const Community: React.FC = () => {
 
     // Fetch actual friends
     if (profile?.friends && profile.friends.length > 0) {
-      // Split into chunks if > 10, but let's just get the first 10 for sidebar
-      // For LoungeRightSidebar, we probably need all, but we can pass all friend IDs there
-      const friendIds = profile.friends.slice(0, 10);
+      // For Lounge we want more friends, Firestore 'in' query allows up to 30.
+      const friendIds = profile.friends.slice(0, 30);
       const usersQ = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
       const unsubUsers = onSnapshot(usersQ, snapshot => {
         setOnlineUsers(snapshot.docs.map(doc => {
@@ -302,7 +301,7 @@ const Community: React.FC = () => {
                )}
 
                {clubsLoading ? (
-                 <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+                 <MMULoading text="Loading clubs..." size="sm" />
                ) : clubs.length > 0 ? (
                  clubs.map(club => {
                    const isManagingClub = isAdmin || (profile?.subjects || []).includes(club.name);
@@ -356,36 +355,40 @@ const Community: React.FC = () => {
                          </div>
                        </div>
                        <div className="flex items-center gap-4 mt-2 sm:mt-0">
-                         {isManagingClub && (
-                            <button 
-                              onClick={() => {
-                                // Scroll up and populate CreatePostBox with club context if needed, or just prompt
-                                const postTitle = window.prompt(`Enter post title for ${club.name}:`);
-                                if (postTitle) {
-                                  addDoc(collection(db, 'communityPosts'), {
-                                    content: `[CLUB UPDATE: ${club.name}] \n${postTitle}`,
-                                    creatorId: user?.uid,
-                                    creatorName: profile?.username || profile?.displayName || user?.displayName,
-                                    creatorPhotoURL: profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`,
-                                    createdAt: serverTimestamp(),
-                                    upvotes: 0,
-                                    tags: [club.name],
-                                    clubId: club.id
-                                  }).then(() => toast.success('Club post uploaded!'));
-                                }
-                              }}
-                              className="bg-black text-white hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap"
-                            >
-                              Upload Post
-                            </button>
+                         {editingClubId !== club.id && (
+                           <>
+                             {isManagingClub && (
+                                <button 
+                                  onClick={() => {
+                                    // Scroll up and populate CreatePostBox with club context if needed, or just prompt
+                                    const postTitle = window.prompt(`Enter post title for ${club.name}:`);
+                                    if (postTitle) {
+                                      addDoc(collection(db, 'communityPosts'), {
+                                        content: `[CLUB UPDATE: ${club.name}] \n${postTitle}`,
+                                        creatorId: user?.uid,
+                                        creatorName: profile?.username || profile?.displayName || user?.displayName,
+                                        creatorPhotoURL: profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`,
+                                        createdAt: serverTimestamp(),
+                                        upvotes: 0,
+                                        tags: [club.name],
+                                        clubId: club.id
+                                      }).then(() => toast.success('Club post uploaded!'));
+                                    }
+                                  }}
+                                  className="bg-black text-white hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap"
+                                >
+                                  Upload Post
+                                </button>
+                             )}
+                             <button 
+                               onClick={() => handleJoinClub(club.id, club.name)}
+                               disabled={isJoined}
+                               className={`px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${isJoined ? 'bg-white/10 text-muted-foreground cursor-not-allowed' : 'bg-primary/20 text-primary hover:bg-primary hover:text-white'}`}
+                             >
+                               {isJoined ? 'Joined' : 'Join Club'}
+                             </button>
+                           </>
                          )}
-                         <button 
-                           onClick={() => handleJoinClub(club.id, club.name)}
-                           disabled={isJoined}
-                           className={`px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${isJoined ? 'bg-white/10 text-muted-foreground cursor-not-allowed' : 'bg-primary/20 text-primary hover:bg-primary hover:text-white'}`}
-                         >
-                           {isJoined ? 'Joined' : 'Join Club'}
-                         </button>
                        </div>
                      </div>
                    </div>
@@ -435,7 +438,7 @@ const Community: React.FC = () => {
               {/* Post Feed */}
               <div className="space-y-6 flex flex-col">
                 {loading && posts.length === 0 ? (
-                  <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
+                  <MMULoading text="Loading feed..." size="md" />
                 ) : posts.length > 0 ? (
                   posts.map(post => (
                     <PostCard 
@@ -473,9 +476,7 @@ const Community: React.FC = () => {
         </main>
 
         {/* Right Column (Widgets) */}
-        {activeItem === 'friends' ? (
-          <LoungeRightSidebar profile={profile!} onlineUsers={onlineUsers} />
-        ) : (
+        {activeItem !== 'friends' && (
           <RightSidebar />
         )}
         

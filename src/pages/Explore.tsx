@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { MMUText } from '../components/MMUText';
 import { Product } from '../types';
+import { MMULoading } from '../components/MMULoading';
 
 const Explore: React.FC = () => {
   const { user, profile } = useAuth();
@@ -251,6 +252,10 @@ const Explore: React.FC = () => {
       toast.error("Failed to delete buzz news");
     }
   };
+
+  if (loading) {
+    return <MMULoading text="Loading explore page..." />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-12 pb-20">
@@ -869,7 +874,7 @@ const Explore: React.FC = () => {
               to={`/upload?tags=${selectedEvent.keyword}`} 
               className="w-full block text-center bg-primary text-primary-foreground py-4 rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-sm"
             >
-              Upload video
+              Upload Now
             </Link>
           </div>
         </div>

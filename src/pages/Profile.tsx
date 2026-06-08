@@ -10,6 +10,7 @@ import { User, BookOpen, Video, MessageSquare, BarChart2, Save, Play, Settings, 
 import { useTheme } from '../ThemeContext';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
+import { MMULoading } from '../components/MMULoading';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { DEPARTMENTS } from '../constants';
 
@@ -20,6 +21,7 @@ const Profile: React.FC = () => {
   const [username, setUsername] = useState<string>("");
   const [levelOfStudy, setLevelOfStudy] = useState<string>("");
   const [department, setDepartment] = useState<string>("");
+  const [faculty, setFaculty] = useState<string>("");
   const [subjects, setSubjects] = useState<string[]>([]);
   const [newSubject, setNewSubject] = useState<string>("");
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -52,6 +54,7 @@ const Profile: React.FC = () => {
           setUsername(data.username || data.displayName || "");
           setLevelOfStudy(data.levelOfStudy || "Degree");
           setDepartment(data.department || "");
+          setFaculty(data.faculty || "");
           setSubjects(data.subjects || []);
           setPhotoURL(data.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`);
           setJoinedClubs(data.joinedClubs || []);
@@ -76,9 +79,16 @@ const Profile: React.FC = () => {
         }
 
         // Fetch user's videos
-        const videosQ = query(collection(db, 'videos'), where('creatorId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const videosQ = query(collection(db, 'videos'), where('creatorId', '==', user.uid));
         const videosSnapshot = await getDocs(videosQ);
         const videosData = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VideoMetadata));
+        
+        videosData.sort((a, b) => {
+          const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return timeB - timeA;
+        });
+
         setMyVideos(videosData);
 
         // Calculate stats
@@ -90,31 +100,6 @@ const Profile: React.FC = () => {
         });
         setStats(prev => ({ ...prev, views: totalViews, likes: totalLikes, videos: videosData.length }));
 
-        // Fetch user's comments (avoiding collectionGroup to prevent index errors)
-        try {
-          const allVideosSnapshot = await getDocs(collection(db, 'videos'));
-          let allUserComments: any[] = [];
-          
-          for (const vDoc of allVideosSnapshot.docs) {
-            const commentsQ = query(collection(db, 'videos', vDoc.id, 'comments'), where('userId', '==', user.uid));
-            const commentsSnapshot = await getDocs(commentsQ);
-            const commentsData = commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            allUserComments = [...allUserComments, ...commentsData];
-          }
-          
-          // Sort comments by createdAt descending
-          allUserComments.sort((a, b) => {
-            const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
-            const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
-            return dateB - dateA;
-          });
-          
-          setMyComments(allUserComments);
-        } catch (e) {
-          console.error("Error fetching comments", e);
-          setMyComments([]);
-        }
-
       } catch (error) {
         console.error("Error fetching profile data:", error);
       } finally {
@@ -124,6 +109,40 @@ const Profile: React.FC = () => {
 
     fetchUserData();
   }, [user]);
+
+  // Fetch comments only when the comments tab is active
+  useEffect(() => {
+    if (!user || activeTab !== 'comments' || myComments.length > 0) return;
+
+    const fetchComments = async () => {
+      try {
+        const allVideosSnapshot = await getDocs(collection(db, 'videos'));
+        let allUserComments: any[] = [];
+        
+        // Execute queries concurrently for better performance
+        const commentPromises = allVideosSnapshot.docs.map(async (vDoc) => {
+          const commentsQ = query(collection(db, 'videos', vDoc.id, 'comments'), where('userId', '==', user.uid));
+          const commentsSnapshot = await getDocs(commentsQ);
+          return commentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        });
+        
+        const nestedComments = await Promise.all(commentPromises);
+        allUserComments = nestedComments.flat();
+        
+        allUserComments.sort((a, b) => {
+          const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return dateB - dateA;
+        });
+        
+        setMyComments(allUserComments);
+      } catch (e) {
+        console.error("Error fetching comments", e);
+      }
+    };
+
+    fetchComments();
+  }, [user, activeTab, myComments.length]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -369,7 +388,7 @@ const Profile: React.FC = () => {
                 <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-2">{user.displayName}</h1>
                 <p className="text-primary font-bold tracking-wide">@{username}</p>
                 <div className="flex flex-col md:flex-row gap-3 mt-4 text-sm text-gray-400">
-                  <span className="flex items-center gap-1"><BookOpen size={16} className="text-primary/70" /> {department || 'Department'}</span>
+                  <span className="flex items-center gap-1"><BookOpen size={16} className="text-primary/70" /> {isAdmin ? (department || 'Department') : (faculty || 'Faculty')}</span>
                   <span className="hidden md:inline">•</span>
                   <span>{levelOfStudy}</span>
                 </div>
@@ -428,9 +447,7 @@ const Profile: React.FC = () => {
       {/* Tab Content */}
       <div className="min-h-[400px]">
         {loading ? (
-          <div className="flex justify-center py-32">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary shadow-[0_0_15px_rgba(255,20,147,0.5)]"></div>
-          </div>
+          <MMULoading text="Loading profile..." size="md" />
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {activeTab === 'videos' && (
@@ -490,7 +507,7 @@ const Profile: React.FC = () => {
                 {myComments.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {myComments.map(comment => (
-                      <div key={comment.id} className="relative bg-black/40 backdrop-blur-xl p-6 rounded-3xl border border-white/5 shadow-xl hover:border-primary/30 transition-all group overflow-hidden">
+                      <div key={comment.id} onClick={() => navigate(`/watch/${comment.videoId}`)} className="cursor-pointer relative bg-black/40 backdrop-blur-xl p-6 rounded-3xl border border-white/5 shadow-xl hover:border-primary/30 hover:scale-[1.02] transition-all group overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-primary/50 group-hover:bg-primary transition-colors" />
                         <p className="text-white font-medium mb-6 leading-relaxed text-lg pl-4">"{comment.text}"</p>
                         <div className="text-xs font-bold uppercase tracking-widest text-gray-500 flex justify-between items-center pt-4 border-t border-white/5 pl-4">
@@ -667,13 +684,6 @@ const Profile: React.FC = () => {
             )}
           </div>
         )}
-      </div>
-
-      {/* Floating Action Button */}
-      <div className="fixed bottom-8 right-8 z-40">
-        <button className="bg-gradient-to-tr from-primary to-pink-600 p-4 rounded-full text-white shadow-[0_0_30px_rgba(255,20,147,0.5)] hover:scale-110 transition-transform duration-300 group">
-          <MessageSquare size={24} className="group-hover:animate-pulse" />
-        </button>
       </div>
 
       {/* Delete Profile Modal */}
