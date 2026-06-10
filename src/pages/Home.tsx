@@ -3,7 +3,7 @@ import { collection, query, orderBy, limit, where, onSnapshot, getDocs, doc, set
 import { db } from '../firebase';
 import { VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2, Edit3, X } from 'lucide-react';
+import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2, Edit3, X, RefreshCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../AuthProvider';
@@ -41,6 +41,7 @@ const Home: React.FC = () => {
 
   const [trendingVideos, setTrendingVideos] = useState<VideoMetadata[]>([]);
   const [trendingPeriod, setTrendingPeriod] = useState<'all-time' | 'weekly'>('all-time');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchTrending = async () => {
@@ -130,18 +131,26 @@ const Home: React.FC = () => {
           }
 
           // 4. Serendipity (Exploration factor)
-          score += (Math.random() * 40); // Random variance to shake up the feed
+          score += (Math.random() * 200); // Increased random variance to shake up the feed
           
           return { video, score };
         });
 
-        // Sort by algorithmic score
+        // Sort by algorithmic score to get the best candidates
         const sorted = scoredVideos
           .sort((a, b) => b.score - a.score)
-          .map(item => item.video)
-          .slice(0, 20); // Pick top 20 best suited for user
+          .map(item => item.video);
           
-        setVideos(sorted);
+        // Take a larger pool of top videos to ensure variety, then randomize the selection
+        const topPool = sorted.slice(0, 60);
+        // Fisher-Yates shuffle
+        for (let i = topPool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [topPool[i], topPool[j]] = [topPool[j], topPool[i]];
+        }
+          
+        // Pick top 21 instead of 20
+        setVideos(topPool.slice(0, 21));
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'videos');
       } finally {
@@ -150,7 +159,7 @@ const Home: React.FC = () => {
     };
 
     fetchVideos();
-  }, [activeCategory, profile]);
+  }, [activeCategory, profile, refreshKey]);
 
   const handleSaveFeatured = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,9 +285,19 @@ const Home: React.FC = () => {
             <Compass className="text-primary" />
             Personalized for You
           </h2>
-          <Link to="/explore" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-            View All <ArrowRight size={16} />
-          </Link>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setRefreshKey(prev => prev + 1)} 
+              className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              disabled={loading}
+            >
+              <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+            <Link to="/explore" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
+              View All <ArrowRight size={16} />
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">

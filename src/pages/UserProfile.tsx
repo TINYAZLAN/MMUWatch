@@ -126,7 +126,10 @@ const UserProfile: React.FC = () => {
     let unsubscribeProfile: (() => void) | null = null;
 
     const fetchProfile = async () => {
-      if (!userId) return;
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         // Listen to profile in real-time
