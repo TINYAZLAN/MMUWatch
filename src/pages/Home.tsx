@@ -24,7 +24,7 @@ const defaultFeatured: FeaturedSettings = {
   title: "SHAPE THE FUTURE AT MMU",
   description: "Experience the digital revolution. Watch how our students are building the next generation of technology and creative media.",
   buttonLink: "", // We can use videos[0]?.id as fallback if this is empty
-  backgroundUrl: "https://picsum.photos/seed/mmu-hero/1920/1080"
+  backgroundUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1920&auto=format&fit=crop"
 };
 
 const Home: React.FC = () => {
@@ -75,7 +75,8 @@ const Home: React.FC = () => {
     const featuredRef = doc(db, 'settings', 'featured');
     const unsubFeatured = onSnapshot(featuredRef, (docSnap) => {
       if (docSnap.exists()) {
-        setFeaturedSettings(docSnap.data() as FeaturedSettings);
+        const data = docSnap.data();
+        setFeaturedSettings({ ...defaultFeatured, ...data } as FeaturedSettings);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'settings');
@@ -222,11 +223,16 @@ const Home: React.FC = () => {
 
       {/* Hero Section */}
       <section className="relative h-[400px] rounded-3xl overflow-hidden group shadow-2xl">
-        {featuredSettings.backgroundUrl.endsWith('.mp4') || featuredSettings.backgroundUrl.endsWith('.webm') ? (
-          <video autoPlay loop muted playsInline src={featuredSettings.backgroundUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+        {featuredSettings?.backgroundUrl?.endsWith('.mp4') || featuredSettings?.backgroundUrl?.endsWith('.webm') ? (
+          <video autoPlay loop muted playsInline src={featuredSettings.backgroundUrl} poster={defaultFeatured.backgroundUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
         ) : (
           <img referrerPolicy="no-referrer"   
-            src={featuredSettings.backgroundUrl} 
+            src={featuredSettings?.backgroundUrl || defaultFeatured.backgroundUrl} 
+            onError={(e) => {
+              if (e.currentTarget.src !== defaultFeatured.backgroundUrl) {
+                e.currentTarget.src = defaultFeatured.backgroundUrl;
+              }
+            }}
             alt="MMU Hero" 
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
           />

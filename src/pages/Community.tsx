@@ -399,7 +399,7 @@ const Community: React.FC = () => {
              </div>
           ) : (
             <>
-              <CreatePostBox />
+              {user && <CreatePostBox />}
 
               {/* Feed Toggles */}
               <div className="flex items-center gap-6 mt-8 mb-6 border-b border-white/5 pb-2 relative">

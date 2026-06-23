@@ -51,6 +51,7 @@ export interface VideoMetadata {
   videoURL: string;
   creatorId: string;
   creatorName?: string;
+  creatorAvatar?: string;
   views: number;
   likes: number;
   likedBy?: string[];

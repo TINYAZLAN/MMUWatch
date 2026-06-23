@@ -603,7 +603,7 @@ const Watch: React.FC = () => {
           <div className="bg-card p-6 rounded-3xl border border-border shadow-sm lg:sticky lg:top-24 hidden-scrollbar lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
             <div className="flex flex-row lg:flex-col items-center lg:text-center gap-4">
               <Link to={`/channel/${video.creatorId}`} className="shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-full overflow-hidden bg-muted border-4 border-primary shadow-lg">
-                <img referrerPolicy="no-referrer" src={uploaderProfile?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
+                <img referrerPolicy="no-referrer" src={uploaderProfile?.photoURL || video.creatorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} alt="Creator" className="w-full h-full object-cover" />
               </Link>
               <div className="flex-1 lg:w-full text-left lg:text-center">
                 <Link to={`/channel/${video.creatorId}`} className="text-lg font-black hover:text-primary transition-colors flex items-center lg:justify-center gap-1">

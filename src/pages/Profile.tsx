@@ -186,6 +186,48 @@ const Profile: React.FC = () => {
           // Compress to JPEG with 0.8 quality
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           setPhotoURL(dataUrl);
+
+          // Auto-save the profile picture
+          if (user) {
+            (async () => {
+              toast.loading("Updating profile picture...", { id: 'photo-update' });
+              try {
+                if (auth.currentUser) {
+                  await updateProfile(auth.currentUser, { photoURL: dataUrl }).catch(() => {});
+                }
+                
+                await setDoc(doc(db, 'users', user.uid), { photoURL: dataUrl }, { merge: true });
+                await setDoc(doc(db, 'profiles', user.uid), { photoURL: dataUrl }, { merge: true });
+
+                // Update community posts to reflect image change
+                try {
+                  const postsQ = query(collection(db, 'communityPosts'), where('creatorId', '==', user.uid));
+                  const postsSnap = await getDocs(postsQ);
+                  for (const postDoc of postsSnap.docs) {
+                    await updateDoc(postDoc.ref, {
+                      creatorAvatar: dataUrl,
+                      creatorPhotoURL: dataUrl
+                    });
+                  }
+                  
+                  const videosQ = query(collection(db, 'videos'), where('creatorId', '==', user.uid));
+                  const videosSnap = await getDocs(videosQ);
+                  for (const videoDoc of videosSnap.docs) {
+                    await updateDoc(videoDoc.ref, {
+                      creatorAvatar: dataUrl
+                    });
+                  }
+                } catch (e) {
+                  console.error("Error updating related docs:", e);
+                }
+
+                toast.success("Profile picture updated successfully!", { id: 'photo-update' });
+              } catch (error) {
+                console.error("Error updating profile picture:", error);
+                toast.error("Failed to update profile picture.", { id: 'photo-update' });
+              }
+            })();
+          }
         };
         img.src = reader.result as string;
       };
@@ -238,8 +280,16 @@ const Profile: React.FC = () => {
             creatorPhotoURL: photoURL || ''
           });
         }
+        
+        const videosQ = query(collection(db, 'videos'), where('creatorId', '==', user.uid));
+        const videosSnap = await getDocs(videosQ);
+        for (const videoDoc of videosSnap.docs) {
+          await updateDoc(videoDoc.ref, {
+            creatorAvatar: photoURL || ''
+          });
+        }
       } catch (e) {
-        console.error("Error updating community posts:", e);
+        console.error("Error updating related docs:", e);
       }
 
       toast.success("Profile updated successfully!");
@@ -380,7 +430,7 @@ const Profile: React.FC = () => {
               type="file" 
               ref={fileInputRef} 
               onChange={handleImageUpload} 
-              accept="image/*" 
+              accept="image/*, .png, .jpg, .jpeg, .gif, .webp, .svg, .avif, .heic, .heif" 
               className="hidden" 
             />
           </div>

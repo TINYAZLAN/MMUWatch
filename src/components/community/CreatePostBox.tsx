@@ -149,7 +149,7 @@ export const CreatePostBox: React.FC = () => {
             <div className="flex items-center gap-1">
               <input 
                  type="file" 
-                 accept="image/*" 
+                 accept="image/*, .png, .jpg, .jpeg, .gif, .webp, .svg, .avif, .heic, .heif" 
                  ref={fileInputRef}
                  className="hidden" 
                  onChange={handleImageChange}

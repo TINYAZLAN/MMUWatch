@@ -101,7 +101,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, className }) => {
       <div className="flex gap-3 px-1">
         <Link to={`/channel/${video.creatorId}`} className="flex-shrink-0 w-9 h-9 rounded-full overflow-hidden bg-muted border border-border">
           <img referrerPolicy="no-referrer"   
-            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} 
+            src={video.creatorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${video.creatorId}`} 
             alt="Creator" 
             className="w-full h-full object-cover"
             

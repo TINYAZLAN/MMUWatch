@@ -459,6 +459,7 @@ const Upload: React.FC = () => {
         sourceType: sourceType,
         creatorId: user.uid,
         creatorName: profile?.username || profile?.displayName || user.displayName || 'Anonymous',
+        creatorAvatar: profile?.photoURL || user.photoURL || '',
         creatorFaculty: userFaculty,
         views: 0,
         likes: 0,
@@ -888,7 +889,7 @@ const Upload: React.FC = () => {
                 <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Upload from Device</label>
                 <input 
                   type="file" 
-                  accept="image/*" 
+                  accept="image/*, .png, .jpg, .jpeg, .gif, .webp, .svg, .avif, .heic, .heif" 
                   onChange={(e) => { handleThumbnailChange(e); setShowThumbnailOptions(false); }}
                   className="w-full text-sm"
                 />

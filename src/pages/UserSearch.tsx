@@ -122,12 +122,12 @@ const UserSearch: React.FC = () => {
       // 1. Fetch videos
       const videosQ = query(collection(db, 'videos'), limit(60));
       const videosSnap = await getDocs(videosQ);
-      let videos = videosSnap.docs.map(doc => ({ id: doc.id, type: 'video', ...doc.data() } as UnifiedSearchResult));
+      const videos = videosSnap.docs.map(doc => ({ id: doc.id, type: 'video', ...doc.data() } as UnifiedSearchResult));
 
       // 2. Fetch events
       const eventsQ = query(collection(db, 'communityEvents'), limit(20));
       const eventsSnap = await getDocs(eventsQ);
-      let events = eventsSnap.docs.map(doc => ({ id: doc.id, type: 'event', ...doc.data() } as UnifiedSearchResult));
+      const events = eventsSnap.docs.map(doc => ({ id: doc.id, type: 'event', ...doc.data() } as UnifiedSearchResult));
 
       let combined = [...videos, ...events];
 
