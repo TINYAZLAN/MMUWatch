@@ -32,6 +32,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
     const q = query(collection(db, 'communityPosts', post.id, 'comments'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snapshot) => {
       setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.warn("Error fetching comments:", error);
     });
     return () => unsub();
   }, [showComments, post.id]);
@@ -130,7 +132,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onDelete, canDelete, o
         <div className="flex items-center gap-1">
           {canDelete && (
             <button 
-              onClick={() => onDelete?.(post.id)}
+              onClick={(e) => { e.stopPropagation(); onDelete?.(post.id); }}
               className="text-muted-foreground hover:text-red-500 p-2 rounded-full hover:bg-white/5 transition-colors"
               title="Delete post"
             >

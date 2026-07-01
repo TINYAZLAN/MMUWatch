@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { Search, Loader2, Navigation, Clock, Bookmark, ChevronDown, ChevronUp, Tag, Heart, PlayCircle, Briefcase, GraduationCap, Building2, MapPin, Search as SearchIcon, Users, Calendar, AlignLeft, Filter, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { VideoMetadata, UnifiedSearchResult } from '../types';
 import { cn } from '../lib/utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { MMULoading } from '../components/MMULoading';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -54,16 +55,20 @@ const UserSearch: React.FC = () => {
     if (!user) return;
     
     // Load Recent
-    const qRecent = query(collection(db, 'searchHistory'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'), limit(10));
+    const qRecent = query(collection(db, 'searchHistory'), where('userId', '==', user.uid));
     const unsubRecent = onSnapshot(qRecent, snap => {
-      setRecentSearches(snap.docs.map(d => ({ id: d.id, ...d.data() } as RecentSearch)));
-    });
+      const results = snap.docs.map(d => ({ id: d.id, ...d.data() } as RecentSearch));
+      results.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      setRecentSearches(results.slice(0, 10));
+    }, error => handleFirestoreError(error, OperationType.LIST, 'searchHistory'));
 
     // Load Saved
-    const qSaved = query(collection(db, 'savedSearches'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'), limit(5));
+    const qSaved = query(collection(db, 'savedSearches'), where('userId', '==', user.uid));
     const unsubSaved = onSnapshot(qSaved, snap => {
-      setSavedSearches(snap.docs.map(d => ({ id: d.id, ...d.data() } as SavedSearch)));
-    });
+      const results = snap.docs.map(d => ({ id: d.id, ...d.data() } as SavedSearch));
+      results.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      setSavedSearches(results.slice(0, 5));
+    }, error => handleFirestoreError(error, OperationType.LIST, 'savedSearches'));
 
     return () => {
       unsubRecent();

@@ -93,7 +93,7 @@ const Credits: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#E31837] p-12 rounded-[3rem] text-center space-y-6 shadow-2xl shadow-red-500/20">
+      <div className="bg-green-600 p-12 rounded-[3rem] text-center space-y-6 shadow-2xl shadow-green-600/20">
         <Heart size={48} className="text-white mx-auto fill-white animate-pulse" />
         <h2 className="text-4xl font-black text-white tracking-tighter"><MMUText text="Thank You for Supporting MMUWatch!" /></h2>
         <p className="text-white/80 text-lg max-w-2xl mx-auto font-medium">

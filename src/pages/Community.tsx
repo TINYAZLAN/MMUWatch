@@ -29,6 +29,15 @@ const Community: React.FC = () => {
   const hasScrolledRef = useRef(false);
 
   useEffect(() => {
+    // If user logs out, force back to home if on a protected route
+    if (!user) {
+      if (activeItem === 'friends') {
+        setActiveItem('home');
+      }
+    }
+  }, [user, activeItem]);
+
+  useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const postId = searchParams.get('post');
     if (postId && !hasScrolledRef.current && posts.some(p => p.id === postId)) {
@@ -180,14 +189,12 @@ const Community: React.FC = () => {
   }, [activeFeed, postsLimit, activeTag, activeItem]);
 
   const handleDeletePost = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this post?')) {
-      try {
-        await deleteDoc(doc(db, 'communityPosts', id));
-        toast.success("Post deleted");
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to delete post");
-      }
+    try {
+      await deleteDoc(doc(db, 'communityPosts', id));
+      toast.success("Post deleted");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete post");
     }
   };
 
@@ -264,8 +271,8 @@ const Community: React.FC = () => {
             </div>
           </div>
 
-          {activeItem === 'friends' ? (
-            <LoungeMiddle user={user!} profile={profile!} />
+          {activeItem === 'friends' && user ? (
+            <LoungeMiddle user={user} profile={profile!} />
           ) : activeItem === 'clubs' ? (
              <div className="space-y-4">
                <h2 className="text-xl font-bold text-white mb-4">All Clubs</h2>

@@ -24,7 +24,7 @@ const defaultFeatured: FeaturedSettings = {
   title: "SHAPE THE FUTURE AT MMU",
   description: "Experience the digital revolution. Watch how our students are building the next generation of technology and creative media.",
   buttonLink: "", // We can use videos[0]?.id as fallback if this is empty
-  backgroundUrl: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1920&auto=format&fit=crop"
+  backgroundUrl: "https://picsum.photos/seed/mmu-hero-new/1920/1080"
 };
 
 const Home: React.FC = () => {
@@ -150,8 +150,8 @@ const Home: React.FC = () => {
           [topPool[i], topPool[j]] = [topPool[j], topPool[i]];
         }
           
-        // Pick top 21 instead of 20
-        setVideos(topPool.slice(0, 21));
+        // Pick top 20
+        setVideos(topPool.slice(0, 20));
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, 'videos');
       } finally {
@@ -229,7 +229,7 @@ const Home: React.FC = () => {
           <img referrerPolicy="no-referrer"   
             src={featuredSettings?.backgroundUrl || defaultFeatured.backgroundUrl} 
             onError={(e) => {
-              if (e.currentTarget.src !== defaultFeatured.backgroundUrl) {
+              if (!e.currentTarget.src.includes('picsum.photos')) {
                 e.currentTarget.src = defaultFeatured.backgroundUrl;
               }
             }}

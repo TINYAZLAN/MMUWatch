@@ -204,8 +204,6 @@ const Explore: React.FC = () => {
 
   const handleDeleteUser = async (userId: string) => {
     if (!isAdmin) return;
-    const confirmDelete = window.confirm("Are you sure you want to delete this user profile? This action is irreversible.");
-    if (!confirmDelete) return;
     try {
       await deleteDoc(doc(db, 'users', userId));
       toast.success("User profile deleted.");
