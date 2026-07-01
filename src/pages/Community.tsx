@@ -364,27 +364,18 @@ const Community: React.FC = () => {
                        <div className="flex items-center gap-4 mt-2 sm:mt-0">
                          {editingClubId !== club.id && (
                            <>
-                             {isManagingClub && (
+                             {isAdmin && (
                                 <button 
                                   onClick={() => {
-                                    // Scroll up and populate CreatePostBox with club context if needed, or just prompt
-                                    const postTitle = window.prompt(`Enter post title for ${club.name}:`);
-                                    if (postTitle) {
-                                      addDoc(collection(db, 'communityPosts'), {
-                                        content: `[CLUB UPDATE: ${club.name}] \n${postTitle}`,
-                                        creatorId: user?.uid,
-                                        creatorName: profile?.username || profile?.displayName || user?.displayName,
-                                        creatorPhotoURL: profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`,
-                                        createdAt: serverTimestamp(),
-                                        upvotes: 0,
-                                        tags: [club.name],
-                                        clubId: club.id
-                                      }).then(() => toast.success('Club post uploaded!'));
+                                    if (window.confirm(`Are you sure you want to delete ${club.name}?`)) {
+                                      deleteDoc(doc(db, 'communityClubs', club.id))
+                                        .then(() => toast.success('Club deleted'))
+                                        .catch(err => toast.error('Failed to delete club'));
                                     }
                                   }}
-                                  className="bg-black text-white hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap"
+                                  className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap"
                                 >
-                                  Upload Post
+                                  Delete
                                 </button>
                              )}
                              <button 

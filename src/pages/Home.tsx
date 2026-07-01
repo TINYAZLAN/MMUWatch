@@ -3,7 +3,7 @@ import { collection, query, orderBy, limit, where, onSnapshot, getDocs, doc, set
 import { db } from '../firebase';
 import { VideoMetadata } from '../types';
 import VideoCard from '../components/VideoCard';
-import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2, Edit3, X, RefreshCcw } from 'lucide-react';
+import { Play, GraduationCap, ArrowRight, TrendingUp, Compass, PlaySquare, Loader2, Edit3, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../AuthProvider';
@@ -291,19 +291,6 @@ const Home: React.FC = () => {
             <Compass className="text-primary" />
             Personalized for You
           </h2>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setRefreshKey(prev => prev + 1)} 
-              className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-              disabled={loading}
-            >
-              <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
-              Refresh
-            </button>
-            <Link to="/explore" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-              View All <ArrowRight size={16} />
-            </Link>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
